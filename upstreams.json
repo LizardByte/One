@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "checkedAt": "2026-08-31",
+  "importPolicy": "Record exact source revisions before selecting a filtered-history or source-snapshot import.",
+  "sources": [
+    {
+      "name": "moonlight-common-c",
+      "url": "https://github.com/moonlight-stream/moonlight-common-c.git",
+      "branch": "master",
+      "revision": "874ac9548f1bd6f095ef2b435c42cdde460e7821",
+      "plannedDestination": "core/protocol"
+    },
+    {
+      "name": "moonlight-qt",
+      "url": "https://github.com/moonlight-stream/moonlight-qt.git",
+      "branch": "master",
+      "revision": "0eff3b9b4dd685e07b15a383519e1972e626c9b3",
+      "plannedDestination": "references/moonlight-qt"
+    },
+    {
+      "name": "moonlight-android",
+      "url": "https://github.com/moonlight-stream/moonlight-android.git",
+      "branch": "master",
+      "revision": "f10085f552b367cf7203007693d91c322a0a2936",
+      "plannedDestination": "references/moonlight-android"
+    },
+    {
+      "name": "moonlight-ios",
+      "url": "https://github.com/moonlight-stream/moonlight-ios.git",
+      "branch": "master",
+      "revision": "85af0f75622bb2636481afda8b0fc5cc33d5956e",
+      "plannedDestination": "references/moonlight-ios"
+    },
+    {
+      "name": "moonlight-xbox",
+      "url": "https://github.com/TheElixZammuto/moonlight-xbox.git",
+      "branch": "master",
+      "revision": "d6c0636403ebfcee9071732f5ee10bb947c2ba44",
+      "plannedDestination": "references/moonlight-xbox"
+    }
+  ]
+}
+
