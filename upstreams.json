@@ -1,14 +1,29 @@
 {
   "schema": 1,
   "checkedAt": "2026-08-31",
-  "importPolicy": "Record exact source revisions before selecting a filtered-history or source-snapshot import.",
+  "importPolicy": "Keep moonlight-common-c as a pinned recursive submodule for now; keep client repositories as references until their behavior is moved behind One-owned interfaces.",
   "sources": [
     {
       "name": "moonlight-common-c",
       "url": "https://github.com/moonlight-stream/moonlight-common-c.git",
       "branch": "master",
       "revision": "874ac9548f1bd6f095ef2b435c42cdde460e7821",
-      "plannedDestination": "core/protocol"
+      "destination": "core/protocol/vendor/moonlight-common-c",
+      "integration": "git-submodule",
+      "dependencies": [
+        {
+          "name": "enet",
+          "url": "https://github.com/cgutman/enet.git",
+          "revision": "aca87840b57f045a1f7f9299e4b1b9b8e2a5e2f1",
+          "integration": "nested-git-submodule"
+        },
+        {
+          "name": "nanors",
+          "url": "https://github.com/sleepybishop/nanors.git",
+          "revision": "b1e3c22ca0cdc0bb83e3cd6ed1a2fc77869ed99a",
+          "integration": "nested-git-submodule"
+        }
+      ]
     },
     {
       "name": "moonlight-qt",
@@ -40,4 +55,3 @@
     }
   ]
 }
-

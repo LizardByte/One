@@ -5,6 +5,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 
+#include "host_list_model.hpp"
 #include "ui_environment.hpp"
 
 int main(int argc, char* argv[]) {
@@ -14,8 +15,10 @@ int main(int argc, char* argv[]) {
   QCoreApplication::setOrganizationName(QStringLiteral("LizardByte"));
 
   UiEnvironment ui_environment;
+  HostListModel computer_model;
   QQmlApplicationEngine engine;
   engine.rootContext()->setContextProperty(QStringLiteral("UiEnvironment"), &ui_environment);
+  engine.rootContext()->setContextProperty(QStringLiteral("ComputerModel"), &computer_model);
 
   QObject::connect(
       &engine,

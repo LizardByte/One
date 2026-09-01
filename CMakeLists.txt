@@ -14,6 +14,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(ONE_BUILD_QT_CLIENT "Build the shared Qt Quick client" ON)
 option(ONE_BUILD_TESTS "Build One's tests" ON)
+option(ONE_PROTOCOL_USE_MBEDTLS "Use MbedTLS instead of OpenSSL for the streaming protocol" OFF)
 
 if(ONE_BUILD_TESTS)
     enable_testing()

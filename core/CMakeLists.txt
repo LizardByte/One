@@ -1,4 +1,8 @@
+add_subdirectory(protocol)
+
 add_library(one_core STATIC
+    src/host.cpp
+    src/pairing_session.cpp
     src/ui_mode.cpp
 )
 add_library(One::Core ALIAS one_core)
@@ -15,4 +19,3 @@ if(MSVC)
 else()
     target_compile_options(one_core PRIVATE -Wall -Wextra -Wpedantic)
 endif()
-

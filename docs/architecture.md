@@ -5,14 +5,17 @@ and input APIs into a lowest-common-denominator abstraction.
 
 ## Runtime layers
 
-1. `core/protocol` will contain the imported and evolved `moonlight-common-c` protocol implementation.
-2. `core` contains Qt-free C++ application behavior and data models.
+1. `core/protocol` contains a pinned `moonlight-common-c` submodule behind a One-owned C++ interface.
+2. `core` contains Qt-free C++ application behavior and data models, including host identity and pairing state.
 3. `clients/qt` contains the shared Qt Quick interface for desktop, Android, Android TV, iOS, and Apple TV.
 4. Platform adapters provide hardware decoding, rendering, audio, input, secure storage, and lifecycle integration.
 5. `clients/xbox` provides the UWP XAML interface for Xbox while consuming the same core contracts.
 
 The core must not expose Qt, JNI, Foundation, or WinRT types. Boundaries use portable C++ internally and a narrow C
 ABI where a platform language requires one.
+
+Discovery and pairing do not belong to `moonlight-common-c`. Platform discovery adapters feed a shared `HostCatalog`,
+while the shared pairing state machine is independent of the eventual HTTP, certificate, and secure-storage adapters.
 
 ## Shared interface
 
@@ -36,4 +39,3 @@ copying decoded frames through the UI layer.
 - A shared UI does not require identical density or navigation on pointer, touch, and television devices.
 - Xbox may render different XAML controls, but it must consume the same settings, labels, state transitions, and
   behavioral tests as the Qt application.
-

@@ -15,18 +15,26 @@ portable core and a standardized interface.
 
 One is in its initial bootstrap phase. The repository currently contains:
 
-- A Qt-free C++20 core with capability-driven desktop, touch, and television UI modes.
+- A Qt-free C++20 core with host, pairing-session, and capability-driven UI models.
+- A pinned `moonlight-common-c` streaming-protocol submodule with a One-owned C++ boundary.
 - A shared Qt Quick shell for desktop, Android, Android TV, iOS, and Apple TV.
 - Android TV detection and a tvOS compile-time path.
 - A placeholder boundary for the separate Xbox UWP XAML interface.
-- Recorded upstream revisions; no Moonlight source has been imported yet.
+- Recorded upstream revisions; only `moonlight-common-c` and its nested dependencies are currently checked out.
 
 Android TV and Apple TV are required targets. See [platform targets](docs/platforms.md) and the
 [architecture](docs/architecture.md) for the current boundaries and validation gates.
 
+Initialize the protocol and its nested dependencies after cloning:
+
+```shell
+git submodule update --init --recursive
+```
+
 ## Build the portable core
 
-The core does not require Qt:
+The core does not require Qt. Its streaming protocol currently requires OpenSSL by default; configure with
+`-DONE_PROTOCOL_USE_MBEDTLS=ON` for upstream's MbedTLS path.
 
 ```shell
 cmake --preset core
