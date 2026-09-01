@@ -457,3 +457,31 @@ void StreamingController::controller_motion_state(
       },
       Qt::QueuedConnection);
 }
+
+void StreamingController::controller_led(
+    const std::uint16_t controller_number,
+    const std::uint8_t red,
+    const std::uint8_t green,
+    const std::uint8_t blue) noexcept {
+  QMetaObject::invokeMethod(
+      this,
+      [this, controller_number, red, green, blue]() {
+        if (session_ && session_->active()) {
+          gamepad_manager_->setLed(controller_number, red, green, blue);
+        }
+      },
+      Qt::QueuedConnection);
+}
+
+void StreamingController::controller_adaptive_triggers(
+    const std::uint16_t controller_number,
+    const one::protocol::ControllerAdaptiveTriggerEffect& effect) noexcept {
+  QMetaObject::invokeMethod(
+      this,
+      [this, controller_number, effect]() {
+        if (session_ && session_->active()) {
+          gamepad_manager_->setAdaptiveTriggers(controller_number, effect);
+        }
+      },
+      Qt::QueuedConnection);
+}

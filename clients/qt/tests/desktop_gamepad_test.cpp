@@ -31,6 +31,27 @@ int main(int argc, char* argv[]) {
   manager.rumble(16, 1, 1);
   manager.rumbleTriggers(16, 1, 1);
   manager.setMotionReporting(16, one::protocol::ControllerMotionType::accelerometer, 100);
+  manager.setLed(16, 1, 2, 3);
+
+  one::protocol::ControllerAdaptiveTriggerEffect adaptive_effect {
+      .update_left = true,
+      .update_right = true,
+      .left_type = 0x01,
+      .right_type = 0x06,
+  };
+  adaptive_effect.left_payload.front() = 0x10;
+  adaptive_effect.left_payload.back() = 0x19;
+  adaptive_effect.right_payload.front() = 0x20;
+  adaptive_effect.right_payload.back() = 0x29;
+  manager.setAdaptiveTriggers(16, adaptive_effect);
+  const auto effect_packet = dualSenseEffectPacket(adaptive_effect);
+  if (effect_packet.size() != dualsense_effect_packet_size || effect_packet[0] != 0x0C ||
+      effect_packet[10] != adaptive_effect.right_type || effect_packet[11] != 0x20 ||
+      effect_packet[20] != 0x29 || effect_packet[21] != adaptive_effect.left_type ||
+      effect_packet[22] != 0x10 || effect_packet[31] != 0x19) {
+    std::cerr << "DualSense adaptive trigger effect used the wrong SDL3 packet layout\n";
+    return EXIT_FAILURE;
+  }
 
   using one::protocol::ControllerButton;
   if (!expect_button(SDL_GAMEPAD_BUTTON_SOUTH, ControllerButton::a) ||

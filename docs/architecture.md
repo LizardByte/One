@@ -51,6 +51,9 @@ calling SDL3. Session teardown sends zero-intensity effects so motors cannot rem
 Touch contacts and battery changes are reported from SDL3 while the session is active. Accelerometer and gyro sensors
 remain disabled until the host requests a reporting rate; gyro values are converted from SDL radians per second to the
 protocol's degrees per second. Teardown cancels active touches and disables both sensors.
+RGB LED callbacks use SDL3's capability-gated API. DualSense adaptive-trigger payloads remain portable at the protocol
+boundary and are translated into SDL3's PS5-specific 47-byte effect packet only inside the desktop adapter. Teardown
+explicitly sends SDL's clear-trigger effect so resistance cannot remain active after the stream ends.
 
 Sunshine's FFmpeg package is encoder-focused and is not a client dependency. One's eventual bundled FFmpeg build
 must be decoder-only and contain the codecs needed by the negotiated client formats.

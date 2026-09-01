@@ -133,6 +133,17 @@ struct ControllerBattery {
   std::uint8_t percentage {unknown_percentage};
 };
 
+struct ControllerAdaptiveTriggerEffect {
+  static constexpr std::size_t payload_size = 10;
+
+  bool update_left {false};
+  bool update_right {false};
+  std::uint8_t left_type {0};
+  std::uint8_t right_type {0};
+  std::array<std::uint8_t, payload_size> left_payload {};
+  std::array<std::uint8_t, payload_size> right_payload {};
+};
+
 enum class VideoBufferType {
   picture,
   sequence_parameter_set,
@@ -257,6 +268,10 @@ class ConnectionListener {
       std::uint16_t,
       ControllerMotionType,
       std::uint16_t) noexcept {}
+  virtual void controller_led(std::uint16_t, std::uint8_t, std::uint8_t, std::uint8_t) noexcept {}
+  virtual void controller_adaptive_triggers(
+      std::uint16_t,
+      const ControllerAdaptiveTriggerEffect&) noexcept {}
 };
 
 // moonlight-common-c currently owns process-global connection state, so only one

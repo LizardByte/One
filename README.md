@@ -25,7 +25,7 @@ One is in its initial bootstrap phase. The repository currently contains:
   `moonlight-common-c` session lifecycle boundary.
 - An initial PC stream path with FFmpeg software video decoding, Opus/SDL3 audio output, captured keyboard and mouse
   input, and SDL3 controller input with rumble, touchpad, motion, and battery reporting. It currently negotiates H.264
-  SDR while hardware decoding and additional controller feedback are still being built.
+  SDR while hardware decoding and platform-specific controller refinements are still being built.
 - Android TV detection and a tvOS compile-time path.
 - A placeholder boundary for the separate Xbox UWP XAML interface.
 - Recorded upstream revisions for each source client that has not yet been brought behind One-owned interfaces.
@@ -72,7 +72,7 @@ Open a paired computer, choose an application, and select **Stream**. Click the 
 mouse; press **Ctrl+Alt+Shift+Z** to release them. Controllers connected through SDL3 are detected before launch and
 can be connected or removed while streaming. Standard and trigger rumble are enabled when SDL3 reports support.
 Touchpad contacts, host-requested motion sensors, and battery state are reported when SDL3 exposes them. Adaptive
-triggers and controller LEDs are not implemented yet.
+trigger effects are supported on SDL3 DualSense devices, and RGB LED updates are enabled when SDL3 reports support.
 
 `ONE_PREFER_STATIC_DEPENDENCIES` defaults to `ON`. One, `moonlight-common-c`, qmdnsengine, OpenSSL, Opus, SDL3, and
 the MinGW runtime are linked statically when the toolchain provides usable static variants. Qt remains dynamic when

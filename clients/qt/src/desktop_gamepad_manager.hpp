@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 
@@ -30,6 +32,14 @@ class DesktopGamepadManager final : public QObject {
       std::uint16_t controllerNumber,
       one::protocol::ControllerMotionType type,
       std::uint16_t reportRateHz) noexcept;
+  void setLed(
+      std::uint16_t controllerNumber,
+      std::uint8_t red,
+      std::uint8_t green,
+      std::uint8_t blue) noexcept;
+  void setAdaptiveTriggers(
+      std::uint16_t controllerNumber,
+      const one::protocol::ControllerAdaptiveTriggerEffect& effect) noexcept;
 
  signals:
   void controllerCountChanged();
@@ -42,3 +52,7 @@ class DesktopGamepadManager final : public QObject {
 [[nodiscard]] one::protocol::ControllerButtonMask gamepadButtonForSdlButton(int button) noexcept;
 [[nodiscard]] std::int16_t invertGamepadYAxis(std::int16_t value) noexcept;
 [[nodiscard]] std::uint8_t gamepadTriggerValue(std::int16_t value) noexcept;
+
+inline constexpr std::size_t dualsense_effect_packet_size = 47;
+[[nodiscard]] std::array<std::uint8_t, dualsense_effect_packet_size> dualSenseEffectPacket(
+    const one::protocol::ControllerAdaptiveTriggerEffect& effect) noexcept;

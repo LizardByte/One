@@ -97,6 +97,14 @@ class StreamingController final : public QObject, public one::protocol::Connecti
       std::uint16_t controllerNumber,
       one::protocol::ControllerMotionType type,
       std::uint16_t reportRateHz) noexcept override;
+  void controller_led(
+      std::uint16_t controllerNumber,
+      std::uint8_t red,
+      std::uint8_t green,
+      std::uint8_t blue) noexcept override;
+  void controller_adaptive_triggers(
+      std::uint16_t controllerNumber,
+      const one::protocol::ControllerAdaptiveTriggerEffect& effect) noexcept override;
 
   std::unique_ptr<ClientIdentity> identity_;
   std::unique_ptr<DesktopGamepadManager> gamepad_manager_;

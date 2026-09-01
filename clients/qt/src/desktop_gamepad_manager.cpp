@@ -83,6 +83,8 @@ one::protocol::ControllerCapabilities controller_capabilities(SDL_Gamepad* gamep
       .accelerometer = SDL_GamepadHasSensor(gamepad, SDL_SENSOR_ACCEL),
       .gyroscope = SDL_GamepadHasSensor(gamepad, SDL_SENSOR_GYRO),
       .battery_state = true,
+      .rgb_led = properties != 0 &&
+                 SDL_GetBooleanProperty(properties, SDL_PROP_GAMEPAD_CAP_RGB_LED_BOOLEAN, false),
   };
 }
 
@@ -215,6 +217,18 @@ std::uint8_t gamepadTriggerValue(const std::int16_t value) noexcept {
   return static_cast<std::uint8_t>(
       (non_negative * std::numeric_limits<std::uint8_t>::max()) /
       std::numeric_limits<std::int16_t>::max());
+}
+
+std::array<std::uint8_t, dualsense_effect_packet_size> dualSenseEffectPacket(
+    const one::protocol::ControllerAdaptiveTriggerEffect& effect) noexcept {
+  std::array<std::uint8_t, dualsense_effect_packet_size> packet {};
+  packet[0] = static_cast<std::uint8_t>((effect.update_right ? 0x04U : 0U) |
+                                        (effect.update_left ? 0x08U : 0U));
+  packet[10] = effect.right_type;
+  std::copy(effect.right_payload.begin(), effect.right_payload.end(), packet.begin() + 11);
+  packet[21] = effect.left_type;
+  std::copy(effect.left_payload.begin(), effect.left_payload.end(), packet.begin() + 22);
+  return packet;
 }
 
 struct DesktopGamepadManager::Impl {
@@ -467,6 +481,58 @@ struct DesktopGamepadManager::Impl {
     };
   }
 
+  void set_led(
+      const std::uint16_t controller_number,
+      const std::uint8_t red,
+      const std::uint8_t green,
+      const std::uint8_t blue) noexcept {
+    if (controller_number >= controller_slots.size()) {
+      return;
+    }
+    auto* gamepad = controller_slots[controller_number].gamepad;
+    if (gamepad == nullptr || !SDL_GamepadConnected(gamepad)) {
+      return;
+    }
+    const auto properties = SDL_GetGamepadProperties(gamepad);
+    if (properties == 0 ||
+        !SDL_GetBooleanProperty(properties, SDL_PROP_GAMEPAD_CAP_RGB_LED_BOOLEAN, false)) {
+      return;
+    }
+    if (!SDL_SetGamepadLED(gamepad, red, green, blue)) {
+      qWarning() << "Unable to set SDL gamepad LED:" << SDL_GetError();
+    }
+  }
+
+  void set_adaptive_triggers(
+      const std::uint16_t controller_number,
+      const one::protocol::ControllerAdaptiveTriggerEffect& effect) noexcept {
+    if (controller_number >= controller_slots.size() ||
+        (!effect.update_left && !effect.update_right)) {
+      return;
+    }
+    auto* gamepad = controller_slots[controller_number].gamepad;
+    if (gamepad == nullptr || !SDL_GamepadConnected(gamepad) ||
+        SDL_GetGamepadType(gamepad) != SDL_GAMEPAD_TYPE_PS5) {
+      return;
+    }
+    const auto packet = dualSenseEffectPacket(effect);
+    if (!SDL_SendGamepadEffect(gamepad, packet.data(), static_cast<int>(packet.size()))) {
+      qWarning() << "Unable to set SDL DualSense adaptive triggers:" << SDL_GetError();
+    }
+  }
+
+  void clear_adaptive_triggers() noexcept {
+    const one::protocol::ControllerAdaptiveTriggerEffect clear_effect {
+        .update_left = true,
+        .update_right = true,
+        .left_type = 0x05,
+        .right_type = 0x05,
+    };
+    for (std::size_t slot_number = 0; slot_number < controller_slots.size(); ++slot_number) {
+      set_adaptive_triggers(static_cast<std::uint16_t>(slot_number), clear_effect);
+    }
+  }
+
   void poll_touchpads(const std::size_t slot_number) noexcept {
     auto& slot = controller_slots[slot_number];
     const auto touchpad_count = std::clamp(SDL_GetNumGamepadTouchpads(slot.gamepad), 0, 2);
@@ -558,6 +624,7 @@ struct DesktopGamepadManager::Impl {
         static_cast<void>(SDL_RumbleGamepadTriggers(slot.gamepad, 0, 0, 0));
       }
     }
+    clear_adaptive_triggers();
   }
 
   void remove_disconnected() noexcept {
@@ -757,5 +824,31 @@ void DesktopGamepadManager::setMotionReporting(
   static_cast<void>(controller_number);
   static_cast<void>(type);
   static_cast<void>(report_rate_hz);
+#endif
+}
+
+void DesktopGamepadManager::setLed(
+    const std::uint16_t controller_number,
+    const std::uint8_t red,
+    const std::uint8_t green,
+    const std::uint8_t blue) noexcept {
+#ifdef ONE_HAS_PC_MEDIA
+  impl_->set_led(controller_number, red, green, blue);
+#else
+  static_cast<void>(controller_number);
+  static_cast<void>(red);
+  static_cast<void>(green);
+  static_cast<void>(blue);
+#endif
+}
+
+void DesktopGamepadManager::setAdaptiveTriggers(
+    const std::uint16_t controller_number,
+    const one::protocol::ControllerAdaptiveTriggerEffect& effect) noexcept {
+#ifdef ONE_HAS_PC_MEDIA
+  impl_->set_adaptive_triggers(controller_number, effect);
+#else
+  static_cast<void>(controller_number);
+  static_cast<void>(effect);
 #endif
 }

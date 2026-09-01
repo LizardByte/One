@@ -1,5 +1,6 @@
 #include "one/protocol/streaming_session.hpp"
 
+#include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <cstdarg>
@@ -411,6 +412,42 @@ struct StreamingSession::Impl {
     }
   }
 
+  static void controller_led(
+      const std::uint16_t controller_number,
+      const std::uint8_t red,
+      const std::uint8_t green,
+      const std::uint8_t blue) {
+    if (auto* session = current(); session != nullptr) {
+      session->listener.controller_led(controller_number, red, green, blue);
+    }
+  }
+
+  static void controller_adaptive_triggers(
+      const std::uint16_t controller_number,
+      const std::uint8_t event_flags,
+      const std::uint8_t left_type,
+      const std::uint8_t right_type,
+      std::uint8_t* left_payload,
+      std::uint8_t* right_payload) {
+    auto* session = current();
+    if (session == nullptr) {
+      return;
+    }
+    ControllerAdaptiveTriggerEffect effect {
+        .update_left = (event_flags & DS_EFFECT_LEFT_TRIGGER) != 0,
+        .update_right = (event_flags & DS_EFFECT_RIGHT_TRIGGER) != 0,
+        .left_type = left_type,
+        .right_type = right_type,
+    };
+    if (left_payload != nullptr) {
+      std::copy_n(left_payload, effect.left_payload.size(), effect.left_payload.begin());
+    }
+    if (right_payload != nullptr) {
+      std::copy_n(right_payload, effect.right_payload.size(), effect.right_payload.begin());
+    }
+    session->listener.controller_adaptive_triggers(controller_number, effect);
+  }
+
   static int video_setup(
       const int format,
       const int width,
@@ -566,6 +603,8 @@ int StreamingSession::start() {
   listener.rumble = Impl::controller_rumble;
   listener.rumbleTriggers = Impl::controller_trigger_rumble;
   listener.setMotionEventState = Impl::controller_motion_state;
+  listener.setControllerLED = Impl::controller_led;
+  listener.setAdaptiveTriggers = Impl::controller_adaptive_triggers;
 
   DECODER_RENDERER_CALLBACKS video {};
   LiInitializeVideoCallbacks(&video);
