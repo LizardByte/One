@@ -28,6 +28,8 @@ int main(int argc, char* argv[]) {
     std::cerr << "SDL3 gamepad subsystem is unavailable\n";
     return EXIT_FAILURE;
   }
+  manager.rumble(16, 1, 1);
+  manager.rumbleTriggers(16, 1, 1);
 
   using one::protocol::ControllerButton;
   if (!expect_button(SDL_GAMEPAD_BUTTON_SOUTH, ControllerButton::a) ||

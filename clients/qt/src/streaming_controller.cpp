@@ -413,3 +413,33 @@ void StreamingController::hdr_mode_changed(const bool enabled) noexcept {
     postStatus(tr("The host enabled HDR; this software renderer currently displays SDR."));
   }
 }
+
+void StreamingController::controller_rumble(
+    const std::uint16_t controller_number,
+    const std::uint16_t low_frequency_motor,
+    const std::uint16_t high_frequency_motor) noexcept {
+  QMetaObject::invokeMethod(
+      this,
+      [this, controller_number, low_frequency_motor, high_frequency_motor]() {
+        if (session_ && session_->active()) {
+          gamepad_manager_->rumble(
+              controller_number, low_frequency_motor, high_frequency_motor);
+        }
+      },
+      Qt::QueuedConnection);
+}
+
+void StreamingController::controller_trigger_rumble(
+    const std::uint16_t controller_number,
+    const std::uint16_t left_trigger_motor,
+    const std::uint16_t right_trigger_motor) noexcept {
+  QMetaObject::invokeMethod(
+      this,
+      [this, controller_number, left_trigger_motor, right_trigger_motor]() {
+        if (session_ && session_->active()) {
+          gamepad_manager_->rumbleTriggers(
+              controller_number, left_trigger_motor, right_trigger_motor);
+        }
+      },
+      Qt::QueuedConnection);
+}

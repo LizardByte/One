@@ -223,6 +223,8 @@ class ConnectionListener {
   virtual void log_message(std::string_view) noexcept {}
   virtual void connection_status_changed(int) noexcept {}
   virtual void hdr_mode_changed(bool) noexcept {}
+  virtual void controller_rumble(std::uint16_t, std::uint16_t, std::uint16_t) noexcept {}
+  virtual void controller_trigger_rumble(std::uint16_t, std::uint16_t, std::uint16_t) noexcept {}
 };
 
 // moonlight-common-c currently owns process-global connection state, so only one

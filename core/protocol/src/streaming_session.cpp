@@ -326,6 +326,26 @@ struct StreamingSession::Impl {
     }
   }
 
+  static void controller_rumble(
+      const std::uint16_t controller_number,
+      const std::uint16_t low_frequency_motor,
+      const std::uint16_t high_frequency_motor) {
+    if (auto* session = current(); session != nullptr) {
+      session->listener.controller_rumble(
+          controller_number, low_frequency_motor, high_frequency_motor);
+    }
+  }
+
+  static void controller_trigger_rumble(
+      const std::uint16_t controller_number,
+      const std::uint16_t left_trigger_motor,
+      const std::uint16_t right_trigger_motor) {
+    if (auto* session = current(); session != nullptr) {
+      session->listener.controller_trigger_rumble(
+          controller_number, left_trigger_motor, right_trigger_motor);
+    }
+  }
+
   static int video_setup(
       const int format,
       const int width,
@@ -478,6 +498,8 @@ int StreamingSession::start() {
   listener.logMessage = Impl::log_message;
   listener.connectionStatusUpdate = Impl::connection_status_changed;
   listener.setHdrMode = Impl::hdr_mode_changed;
+  listener.rumble = Impl::controller_rumble;
+  listener.rumbleTriggers = Impl::controller_trigger_rumble;
 
   DECODER_RENDERER_CALLBACKS video {};
   LiInitializeVideoCallbacks(&video);

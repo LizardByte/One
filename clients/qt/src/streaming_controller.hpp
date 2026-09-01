@@ -85,6 +85,14 @@ class StreamingController final : public QObject, public one::protocol::Connecti
   void log_message(std::string_view message) noexcept override;
   void connection_status_changed(int status) noexcept override;
   void hdr_mode_changed(bool enabled) noexcept override;
+  void controller_rumble(
+      std::uint16_t controllerNumber,
+      std::uint16_t lowFrequencyMotor,
+      std::uint16_t highFrequencyMotor) noexcept override;
+  void controller_trigger_rumble(
+      std::uint16_t controllerNumber,
+      std::uint16_t leftTriggerMotor,
+      std::uint16_t rightTriggerMotor) noexcept override;
 
   std::unique_ptr<ClientIdentity> identity_;
   std::unique_ptr<DesktopGamepadManager> gamepad_manager_;

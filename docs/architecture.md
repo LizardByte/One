@@ -46,6 +46,8 @@ adapters must track every pressed key and button and release them on capture los
 The desktop controller adapter uses SDL3 Gamepad mappings, assigns the lowest available protocol slot, includes the
 active-controller mask in launch requests, and reports hot-plug arrival/departure events. It advertises only feedback
 capabilities that the adapter actually implements.
+Host-driven standard and trigger-rumble callbacks cross the protocol boundary and are queued onto the Qt thread before
+calling SDL3. Session teardown sends zero-intensity effects so motors cannot remain active after streaming stops.
 
 Sunshine's FFmpeg package is encoder-focused and is not a client dependency. One's eventual bundled FFmpeg build
 must be decoder-only and contain the codecs needed by the negotiated client formats.

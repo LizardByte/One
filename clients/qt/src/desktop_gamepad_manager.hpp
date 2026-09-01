@@ -18,6 +18,14 @@ class DesktopGamepadManager final : public QObject {
   [[nodiscard]] int controllerCount() const noexcept;
   [[nodiscard]] std::uint16_t activeMask() const noexcept;
   void attachSession(one::protocol::StreamingSession* session) noexcept;
+  void rumble(
+      std::uint16_t controllerNumber,
+      std::uint16_t lowFrequencyMotor,
+      std::uint16_t highFrequencyMotor) noexcept;
+  void rumbleTriggers(
+      std::uint16_t controllerNumber,
+      std::uint16_t leftTriggerMotor,
+      std::uint16_t rightTriggerMotor) noexcept;
 
  signals:
   void controllerCountChanged();

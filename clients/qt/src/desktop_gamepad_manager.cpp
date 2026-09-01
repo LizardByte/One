@@ -17,6 +17,7 @@
 namespace {
 
 constexpr std::size_t maximum_controllers = 16;
+constexpr std::uint32_t rumble_duration_ms = 30'000;
 
 bool states_equal(
     const one::protocol::ControllerState& left,
@@ -64,9 +65,15 @@ one::protocol::ControllerButtonMask supported_buttons(SDL_Gamepad* gamepad) noex
 }
 
 one::protocol::ControllerCapabilities controller_capabilities(SDL_Gamepad* gamepad) noexcept {
+  const auto properties = SDL_GetGamepadProperties(gamepad);
   return {
       .analog_triggers = SDL_GamepadHasAxis(gamepad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) ||
                          SDL_GamepadHasAxis(gamepad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER),
+      .rumble = properties != 0 &&
+                SDL_GetBooleanProperty(properties, SDL_PROP_GAMEPAD_CAP_RUMBLE_BOOLEAN, false),
+      .trigger_rumble =
+          properties != 0 &&
+          SDL_GetBooleanProperty(properties, SDL_PROP_GAMEPAD_CAP_TRIGGER_RUMBLE_BOOLEAN, false),
   };
 }
 
@@ -232,12 +239,78 @@ struct DesktopGamepadManager::Impl {
   }
 
   void attach(one::protocol::StreamingSession* new_session) noexcept {
+    if (new_session == nullptr) {
+      stop_feedback();
+    }
     session = new_session;
     if (session == nullptr || !session->active()) {
       return;
     }
     for (std::size_t slot = 0; slot < controller_slots.size(); ++slot) {
       send_arrival(slot);
+    }
+  }
+
+  void rumble(
+      const std::uint16_t controller_number,
+      const std::uint16_t low_frequency_motor,
+      const std::uint16_t high_frequency_motor) noexcept {
+    if (controller_number >= controller_slots.size()) {
+      return;
+    }
+    auto* gamepad = controller_slots[controller_number].gamepad;
+    if (gamepad == nullptr || !SDL_GamepadConnected(gamepad)) {
+      return;
+    }
+    const auto properties = SDL_GetGamepadProperties(gamepad);
+    if (properties == 0 ||
+        !SDL_GetBooleanProperty(properties, SDL_PROP_GAMEPAD_CAP_RUMBLE_BOOLEAN, false)) {
+      return;
+    }
+    if (!SDL_RumbleGamepad(
+            gamepad, low_frequency_motor, high_frequency_motor, rumble_duration_ms)) {
+      qWarning() << "Unable to rumble SDL gamepad:" << SDL_GetError();
+    }
+  }
+
+  void rumble_triggers(
+      const std::uint16_t controller_number,
+      const std::uint16_t left_trigger_motor,
+      const std::uint16_t right_trigger_motor) noexcept {
+    if (controller_number >= controller_slots.size()) {
+      return;
+    }
+    auto* gamepad = controller_slots[controller_number].gamepad;
+    if (gamepad == nullptr || !SDL_GamepadConnected(gamepad)) {
+      return;
+    }
+    const auto properties = SDL_GetGamepadProperties(gamepad);
+    if (properties == 0 ||
+        !SDL_GetBooleanProperty(properties, SDL_PROP_GAMEPAD_CAP_TRIGGER_RUMBLE_BOOLEAN, false)) {
+      return;
+    }
+    if (!SDL_RumbleGamepadTriggers(
+            gamepad, left_trigger_motor, right_trigger_motor, rumble_duration_ms)) {
+      qWarning() << "Unable to rumble SDL gamepad triggers:" << SDL_GetError();
+    }
+  }
+
+  void stop_feedback() noexcept {
+    for (auto& slot : controller_slots) {
+      if (slot.gamepad == nullptr || !SDL_GamepadConnected(slot.gamepad)) {
+        continue;
+      }
+      const auto properties = SDL_GetGamepadProperties(slot.gamepad);
+      if (properties == 0) {
+        continue;
+      }
+      if (SDL_GetBooleanProperty(properties, SDL_PROP_GAMEPAD_CAP_RUMBLE_BOOLEAN, false)) {
+        static_cast<void>(SDL_RumbleGamepad(slot.gamepad, 0, 0, 0));
+      }
+      if (SDL_GetBooleanProperty(
+              properties, SDL_PROP_GAMEPAD_CAP_TRIGGER_RUMBLE_BOOLEAN, false)) {
+        static_cast<void>(SDL_RumbleGamepadTriggers(slot.gamepad, 0, 0, 0));
+      }
     }
   }
 
@@ -379,5 +452,31 @@ void DesktopGamepadManager::attachSession(one::protocol::StreamingSession* sessi
   impl_->attach(session);
 #else
   static_cast<void>(session);
+#endif
+}
+
+void DesktopGamepadManager::rumble(
+    const std::uint16_t controller_number,
+    const std::uint16_t low_frequency_motor,
+    const std::uint16_t high_frequency_motor) noexcept {
+#ifdef ONE_HAS_PC_MEDIA
+  impl_->rumble(controller_number, low_frequency_motor, high_frequency_motor);
+#else
+  static_cast<void>(controller_number);
+  static_cast<void>(low_frequency_motor);
+  static_cast<void>(high_frequency_motor);
+#endif
+}
+
+void DesktopGamepadManager::rumbleTriggers(
+    const std::uint16_t controller_number,
+    const std::uint16_t left_trigger_motor,
+    const std::uint16_t right_trigger_motor) noexcept {
+#ifdef ONE_HAS_PC_MEDIA
+  impl_->rumble_triggers(controller_number, left_trigger_motor, right_trigger_motor);
+#else
+  static_cast<void>(controller_number);
+  static_cast<void>(left_trigger_motor);
+  static_cast<void>(right_trigger_motor);
 #endif
 }
