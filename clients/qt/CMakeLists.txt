@@ -7,12 +7,12 @@ find_package(OpenSSL 1.1 REQUIRED COMPONENTS Crypto)
 set(ONE_HAS_DESKTOP_MEDIA OFF)
 if(NOT ANDROID AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS" AND NOT CMAKE_SYSTEM_NAME STREQUAL "tvOS")
     find_package(PkgConfig QUIET)
-    find_package(SDL2 CONFIG QUIET)
+    find_package(SDL3 CONFIG QUIET)
     if(PkgConfig_FOUND)
         pkg_check_modules(ONE_FFMPEG QUIET libavcodec libavutil libswscale)
         pkg_check_modules(ONE_OPUS QUIET opus)
     endif()
-    if(ONE_FFMPEG_FOUND AND ONE_OPUS_FOUND AND TARGET SDL2::SDL2-static)
+    if(ONE_FFMPEG_FOUND AND ONE_OPUS_FOUND AND TARGET SDL3::SDL3-static)
         set(ONE_HAS_DESKTOP_MEDIA ON)
         add_library(one_desktop_media_dependencies INTERFACE)
         target_include_directories(one_desktop_media_dependencies INTERFACE
@@ -27,20 +27,20 @@ if(NOT ANDROID AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS" AND NOT CMAKE_SYSTEM_NAM
             # The complete MSYS2 FFmpeg static closure contains conflicting Rust
             # runtimes and a Windows-incompatible libdl dependency. Keep the
             # small FFmpeg ABI surface shared until One has a decoder-only build;
-            # Opus and SDL remain static here.
+            # Opus and SDL3 remain static here.
             target_link_libraries(one_desktop_media_dependencies INTERFACE
                 "-Wl,-Bdynamic"
                 ${ONE_FFMPEG_LIBRARIES}
                 "-Wl,-Bstatic"
                 ${ONE_OPUS_STATIC_LIBRARIES}
                 "-Wl,-Bdynamic"
-                SDL2::SDL2-static
+                SDL3::SDL3-static
             )
         else()
             target_link_libraries(one_desktop_media_dependencies INTERFACE
                 ${ONE_FFMPEG_LINK_LIBRARIES}
                 ${ONE_OPUS_LINK_LIBRARIES}
-                SDL2::SDL2-static
+                SDL3::SDL3-static
             )
         endif()
         target_link_options(one_desktop_media_dependencies INTERFACE
@@ -49,7 +49,7 @@ if(NOT ANDROID AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS" AND NOT CMAKE_SYSTEM_NAM
         )
         message(STATUS "One desktop media backend enabled with decoder-enabled FFmpeg")
     else()
-        message(STATUS "One desktop media backend disabled: decoder-enabled FFmpeg, Opus, and static SDL2 are required")
+        message(STATUS "One desktop media backend disabled: decoder-enabled FFmpeg, Opus, and static SDL3 are required")
     endif()
 endif()
 
@@ -89,6 +89,8 @@ if(WIN32 AND ONE_PREFER_STATIC_DEPENDENCIES)
 endif()
 
 qt_add_executable(one
+    src/desktop_gamepad_manager.cpp
+    src/desktop_gamepad_manager.hpp
     src/main.cpp
     src/opus_audio_renderer.cpp
     src/opus_audio_renderer.hpp
@@ -215,6 +217,20 @@ if(ONE_BUILD_TESTS)
         target_include_directories(one_desktop_input_test PRIVATE src)
         target_link_libraries(one_desktop_input_test PRIVATE One::Protocol Qt6::Core)
         add_test(NAME one.qt.desktop_input COMMAND one_desktop_input_test)
+
+        add_executable(one_desktop_gamepad_test
+            src/desktop_gamepad_manager.cpp
+            src/desktop_gamepad_manager.hpp
+            tests/desktop_gamepad_test.cpp
+        )
+        target_include_directories(one_desktop_gamepad_test PRIVATE src)
+        target_compile_definitions(one_desktop_gamepad_test PRIVATE ONE_HAS_PC_MEDIA SDL_MAIN_HANDLED)
+        target_link_libraries(one_desktop_gamepad_test PRIVATE
+            One::Protocol
+            Qt6::Core
+            one_desktop_media_dependencies
+        )
+        add_test(NAME one.qt.desktop_gamepad COMMAND one_desktop_gamepad_test)
     endif()
 
     foreach(ui_mode IN ITEMS desktop touch television)

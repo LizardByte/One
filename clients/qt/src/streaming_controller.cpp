@@ -7,6 +7,7 @@
 #include <QtLogging>
 
 #include "client_identity.hpp"
+#include "desktop_gamepad_manager.hpp"
 #include "host_settings.hpp"
 #include "launch_request.hpp"
 #include "opus_audio_renderer.hpp"
@@ -36,7 +37,14 @@ QString connection_error_message(const int error_code) {
 
 StreamingController::StreamingController(QObject* parent) : QObject(parent) {
   identity_ = std::make_unique<ClientIdentity>();
+  gamepad_manager_ = std::make_unique<DesktopGamepadManager>();
   launch_client_ = std::make_unique<LaunchClient>(*identity_);
+
+  connect(
+      gamepad_manager_.get(),
+      &DesktopGamepadManager::controllerCountChanged,
+      this,
+      &StreamingController::controllerCountChanged);
 
   connect(launch_client_.get(), &LaunchClient::succeeded, this, [this](
                                                                          const QString& stable_id,
@@ -69,6 +77,7 @@ StreamingController::StreamingController(QObject* parent) : QObject(parent) {
 
 StreamingController::~StreamingController() {
   stop_requested_ = true;
+  gamepad_manager_->attachSession(nullptr);
   if (!video_output_.isNull()) {
     video_output_->setInputSession(nullptr);
   }
@@ -97,6 +106,10 @@ bool StreamingController::streaming() const noexcept {
   return state_ == State::streaming;
 }
 
+int StreamingController::controllerCount() const noexcept {
+  return gamepad_manager_->controllerCount();
+}
+
 const QString& StreamingController::status() const noexcept {
   return status_;
 }
@@ -106,7 +119,8 @@ const QString& StreamingController::error() const noexcept {
 }
 
 QString StreamingController::unavailableReason() const {
-  return available() ? QString {} : tr("This build does not include the desktop FFmpeg and Opus media backend.");
+  return available() ? QString {}
+                     : tr("This build does not include the desktop FFmpeg, Opus, and SDL3 media backend.");
 }
 
 bool StreamingController::startApplication(
@@ -158,7 +172,10 @@ bool StreamingController::startApplication(
       loadServerCertificate(stable_id_),
       pending_was_resume_ ? LaunchAction::resume : LaunchAction::launch,
       configuration_->launch_parameters(),
-      {.application_id = application_id});
+      {
+          .application_id = application_id,
+          .gamepad_mask = gamepad_manager_->activeMask(),
+      });
   return true;
 }
 
@@ -182,6 +199,7 @@ void StreamingController::stop() {
   }
   if (session_) {
     setState(State::stopping);
+    gamepad_manager_->attachSession(nullptr);
     if (!video_output_.isNull()) {
       video_output_->setInputSession(nullptr);
     }
@@ -308,11 +326,13 @@ void StreamingController::handleStartFinished() {
   if (!video_output_.isNull()) {
     video_output_->setInputSession(session_.get());
   }
+  gamepad_manager_->attachSession(session_.get());
   setStatus(tr("Streaming %1").arg(application_title_));
   setState(State::streaming);
 }
 
 void StreamingController::clearSession() {
+  gamepad_manager_->attachSession(nullptr);
   if (!video_output_.isNull()) {
     video_output_->setInputSession(nullptr);
   }

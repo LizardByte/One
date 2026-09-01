@@ -45,7 +45,11 @@ int main() {
       session.send_horizontal_scroll(-120) != one::protocol::StreamingSession::input_not_ready ||
       session.send_key(0x41, one::protocol::KeyAction::press, {}) !=
           one::protocol::StreamingSession::input_not_ready ||
-      session.send_utf8_text("One") != one::protocol::StreamingSession::input_not_ready) {
+      session.send_utf8_text("One") != one::protocol::StreamingSession::input_not_ready ||
+      session.send_controller_arrival(0, 1, one::protocol::ControllerType::xbox, 0, {}) !=
+          one::protocol::StreamingSession::input_not_ready ||
+      session.send_controller_state(0, 1, {}) != one::protocol::StreamingSession::input_not_ready ||
+      session.send_controller_departure(0, 0) != one::protocol::StreamingSession::input_not_ready) {
     std::cerr << "input should be rejected while the connection is inactive\n";
     return 1;
   }

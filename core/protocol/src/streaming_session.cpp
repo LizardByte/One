@@ -120,6 +120,65 @@ char native_key_modifiers(const KeyModifiers modifiers) noexcept {
   return native;
 }
 
+int native_controller_type(const ControllerType type) noexcept {
+  switch (type) {
+    case ControllerType::xbox:
+      return LI_CTYPE_XBOX;
+    case ControllerType::playstation:
+      return LI_CTYPE_PS;
+    case ControllerType::nintendo:
+      return LI_CTYPE_NINTENDO;
+    case ControllerType::steam:
+      return LI_CTYPE_STEAM;
+    case ControllerType::unknown:
+      return LI_CTYPE_UNKNOWN;
+  }
+  return LI_CTYPE_UNKNOWN;
+}
+
+int native_controller_buttons(const ControllerButtonMask buttons) noexcept {
+  const auto has = [buttons](const ControllerButton button) {
+    return (buttons & controller_button(button)) != 0;
+  };
+  int native = 0;
+  native |= has(ControllerButton::dpad_up) ? UP_FLAG : 0;
+  native |= has(ControllerButton::dpad_down) ? DOWN_FLAG : 0;
+  native |= has(ControllerButton::dpad_left) ? LEFT_FLAG : 0;
+  native |= has(ControllerButton::dpad_right) ? RIGHT_FLAG : 0;
+  native |= has(ControllerButton::start) ? PLAY_FLAG : 0;
+  native |= has(ControllerButton::back) ? BACK_FLAG : 0;
+  native |= has(ControllerButton::left_stick) ? LS_CLK_FLAG : 0;
+  native |= has(ControllerButton::right_stick) ? RS_CLK_FLAG : 0;
+  native |= has(ControllerButton::left_shoulder) ? LB_FLAG : 0;
+  native |= has(ControllerButton::right_shoulder) ? RB_FLAG : 0;
+  native |= has(ControllerButton::guide) ? SPECIAL_FLAG : 0;
+  native |= has(ControllerButton::a) ? A_FLAG : 0;
+  native |= has(ControllerButton::b) ? B_FLAG : 0;
+  native |= has(ControllerButton::x) ? X_FLAG : 0;
+  native |= has(ControllerButton::y) ? Y_FLAG : 0;
+  native |= has(ControllerButton::paddle_1) ? PADDLE1_FLAG : 0;
+  native |= has(ControllerButton::paddle_2) ? PADDLE2_FLAG : 0;
+  native |= has(ControllerButton::paddle_3) ? PADDLE3_FLAG : 0;
+  native |= has(ControllerButton::paddle_4) ? PADDLE4_FLAG : 0;
+  native |= has(ControllerButton::touchpad) ? TOUCHPAD_FLAG : 0;
+  native |= has(ControllerButton::misc) ? MISC_FLAG : 0;
+  return native;
+}
+
+int native_controller_capabilities(const ControllerCapabilities capabilities) noexcept {
+  int native = 0;
+  native |= capabilities.analog_triggers ? LI_CCAP_ANALOG_TRIGGERS : 0;
+  native |= capabilities.rumble ? LI_CCAP_RUMBLE : 0;
+  native |= capabilities.trigger_rumble ? LI_CCAP_TRIGGER_RUMBLE : 0;
+  native |= capabilities.touchpad ? LI_CCAP_TOUCHPAD : 0;
+  native |= capabilities.dual_touchpad ? LI_CCAP_DUAL_TOUCHPAD : 0;
+  native |= capabilities.accelerometer ? LI_CCAP_ACCEL : 0;
+  native |= capabilities.gyroscope ? LI_CCAP_GYRO : 0;
+  native |= capabilities.battery_state ? LI_CCAP_BATTERY_STATE : 0;
+  native |= capabilities.rgb_led ? LI_CCAP_RGB_LED : 0;
+  return native;
+}
+
 std::string_view stage_name(const int stage) noexcept {
   const auto* name = LiGetStageName(stage);
   return name == nullptr ? std::string_view {} : std::string_view {name};
@@ -528,6 +587,60 @@ int StreamingSession::send_utf8_text(const std::string_view text) noexcept {
     return invalid_input;
   }
   return LiSendUtf8TextEvent(text.data(), static_cast<unsigned int>(text.size()));
+}
+
+int StreamingSession::send_controller_arrival(
+    const std::uint8_t controller_number,
+    const std::uint16_t active_controller_mask,
+    const ControllerType type,
+    const ControllerButtonMask supported_buttons,
+    const ControllerCapabilities capabilities) noexcept {
+  if (!active()) {
+    return input_not_ready;
+  }
+  if (controller_number >= 16 || (active_controller_mask & (1U << controller_number)) == 0) {
+    return invalid_input;
+  }
+  return LiSendControllerArrivalEvent(
+      controller_number,
+      active_controller_mask,
+      static_cast<std::uint8_t>(native_controller_type(type)),
+      static_cast<std::uint32_t>(native_controller_buttons(supported_buttons)),
+      static_cast<std::uint16_t>(native_controller_capabilities(capabilities)));
+}
+
+int StreamingSession::send_controller_state(
+    const std::uint8_t controller_number,
+    const std::uint16_t active_controller_mask,
+    const ControllerState& state) noexcept {
+  if (!active()) {
+    return input_not_ready;
+  }
+  if (controller_number >= 16 || (active_controller_mask & (1U << controller_number)) == 0) {
+    return invalid_input;
+  }
+  return LiSendMultiControllerEvent(
+      controller_number,
+      active_controller_mask,
+      native_controller_buttons(state.buttons),
+      state.left_trigger,
+      state.right_trigger,
+      state.left_stick_x,
+      state.left_stick_y,
+      state.right_stick_x,
+      state.right_stick_y);
+}
+
+int StreamingSession::send_controller_departure(
+    const std::uint8_t controller_number,
+    const std::uint16_t active_controller_mask) noexcept {
+  if (!active()) {
+    return input_not_ready;
+  }
+  if (controller_number >= 16 || (active_controller_mask & (1U << controller_number)) != 0) {
+    return invalid_input;
+  }
+  return LiSendMultiControllerEvent(controller_number, active_controller_mask, 0, 0, 0, 0, 0, 0, 0);
 }
 
 }  // namespace one::protocol

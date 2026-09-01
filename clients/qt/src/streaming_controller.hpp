@@ -11,6 +11,7 @@
 #include "one/protocol/streaming_session.hpp"
 
 class ClientIdentity;
+class DesktopGamepadManager;
 class LaunchClient;
 class OpusAudioRenderer;
 class StreamVideoOutput;
@@ -20,6 +21,7 @@ class StreamingController final : public QObject, public one::protocol::Connecti
   Q_PROPERTY(bool available READ available CONSTANT)
   Q_PROPERTY(bool busy READ busy NOTIFY stateChanged)
   Q_PROPERTY(bool streaming READ streaming NOTIFY stateChanged)
+  Q_PROPERTY(int controllerCount READ controllerCount NOTIFY controllerCountChanged)
   Q_PROPERTY(QString status READ status NOTIFY statusChanged)
   Q_PROPERTY(QString error READ error NOTIFY errorChanged)
   Q_PROPERTY(QString unavailableReason READ unavailableReason CONSTANT)
@@ -41,6 +43,7 @@ class StreamingController final : public QObject, public one::protocol::Connecti
   [[nodiscard]] bool available() const noexcept;
   [[nodiscard]] bool busy() const noexcept;
   [[nodiscard]] bool streaming() const noexcept;
+  [[nodiscard]] int controllerCount() const noexcept;
   [[nodiscard]] const QString& status() const noexcept;
   [[nodiscard]] const QString& error() const noexcept;
   [[nodiscard]] QString unavailableReason() const;
@@ -63,6 +66,7 @@ class StreamingController final : public QObject, public one::protocol::Connecti
   void stateChanged();
   void statusChanged();
   void errorChanged();
+  void controllerCountChanged();
 
  private:
   void setState(State state);
@@ -83,6 +87,7 @@ class StreamingController final : public QObject, public one::protocol::Connecti
   void hdr_mode_changed(bool enabled) noexcept override;
 
   std::unique_ptr<ClientIdentity> identity_;
+  std::unique_ptr<DesktopGamepadManager> gamepad_manager_;
   std::unique_ptr<LaunchClient> launch_client_;
   std::unique_ptr<one::protocol::StreamConfiguration> configuration_;
   std::unique_ptr<OpusAudioRenderer> audio_renderer_;

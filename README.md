@@ -23,8 +23,9 @@ One is in its initial bootstrap phase. The repository currently contains:
   application-list browsing in the Qt client.
 - Exact authenticated `/launch`, `/resume`, and `/cancel` request handling plus a renderer-neutral
   `moonlight-common-c` session lifecycle boundary.
-- An initial PC stream path with FFmpeg software video decoding, Opus/SDL audio output, and captured keyboard and
-  mouse input. It currently negotiates H.264 SDR while hardware decoding and controller input are still being built.
+- An initial PC stream path with FFmpeg software video decoding, Opus/SDL3 audio output, captured keyboard and mouse
+  input, and SDL3 controller input. It currently negotiates H.264 SDR while hardware decoding and controller feedback
+  are still being built.
 - Android TV detection and a tvOS compile-time path.
 - A placeholder boundary for the separate Xbox UWP XAML interface.
 - Recorded upstream revisions for each source client that has not yet been brought behind One-owned interfaces.
@@ -52,7 +53,7 @@ ctest --preset core
 ## Build the shared Qt client
 
 Install Qt 6.8 or later with Qt Quick and Qt Quick Controls. Desktop streaming also requires a decoder-enabled
-FFmpeg, Opus, and SDL2 development package. Then configure with the dependency prefix:
+FFmpeg, Opus, and SDL3 development package. Then configure with the dependency prefix:
 
 ```shell
 cmake -S . -B build/qt -DCMAKE_PREFIX_PATH=/path/to/Qt -DONE_BUILD_QT_CLIENT=ON
@@ -68,9 +69,10 @@ $env:PATH = "C:\msys64\ucrt64\bin;$env:PATH"
 ```
 
 Open a paired computer, choose an application, and select **Stream**. Click the video to capture the keyboard and
-mouse; press **Ctrl+Alt+Shift+Z** to release them. Controller input is not implemented yet.
+mouse; press **Ctrl+Alt+Shift+Z** to release them. Controllers connected through SDL3 are detected before launch and
+can be connected or removed while streaming. Rumble, touch, motion, battery, and LED feedback are not implemented yet.
 
-`ONE_PREFER_STATIC_DEPENDENCIES` defaults to `ON`. One, `moonlight-common-c`, qmdnsengine, OpenSSL, Opus, SDL2, and
+`ONE_PREFER_STATIC_DEPENDENCIES` defaults to `ON`. One, `moonlight-common-c`, qmdnsengine, OpenSSL, Opus, SDL3, and
 the MinGW runtime are linked statically when the toolchain provides usable static variants. Qt remains dynamic when
 configuring against a shared Qt installation. The general-purpose MSYS2 FFmpeg static closure is not usable here;
 One temporarily links its FFmpeg ABI dynamically until the project has a purpose-built, decoder-only FFmpeg package.

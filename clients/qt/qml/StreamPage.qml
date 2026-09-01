@@ -67,6 +67,15 @@ Page {
             }
 
             Label {
+                visible: page.streamingController.controllerCount > 0
+                text: page.streamingController.controllerCount === 1
+                    ? qsTr("1 controller")
+                    : qsTr("%1 controllers").arg(page.streamingController.controllerCount)
+                color: "white"
+                opacity: 0.82
+            }
+
+            Label {
                 text: page.streamingController.status
                 color: "white"
                 opacity: 0.82

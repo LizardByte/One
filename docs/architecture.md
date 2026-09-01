@@ -43,6 +43,9 @@ ready to start the protocol session immediately.
 Keyboard and pointer adapters translate platform events into One-owned virtual-key, modifier, button, motion, and
 scroll types. Only the protocol boundary adds GameStream packet conventions and calls `moonlight-common-c`. Input
 adapters must track every pressed key and button and release them on capture loss, focus loss, or session teardown.
+The desktop controller adapter uses SDL3 Gamepad mappings, assigns the lowest available protocol slot, includes the
+active-controller mask in launch requests, and reports hot-plug arrival/departure events. It advertises only feedback
+capabilities that the adapter actually implements.
 
 Sunshine's FFmpeg package is encoder-focused and is not a client dependency. One's eventual bundled FFmpeg build
 must be decoder-only and contain the codecs needed by the negotiated client formats.

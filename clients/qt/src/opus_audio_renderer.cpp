@@ -10,14 +10,14 @@
 #ifndef SDL_MAIN_HANDLED
 #define SDL_MAIN_HANDLED
 #endif
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 #include <opus/opus_multistream.h>
 #endif
 
 struct OpusAudioRenderer::Impl {
 #ifdef ONE_HAS_PC_MEDIA
   OpusMSDecoder* decoder {nullptr};
-  SDL_AudioDeviceID device {0};
+  SDL_AudioStream* stream {nullptr};
   int channels {0};
   int samples_per_frame {0};
   std::vector<opus_int16> decoded_samples;
@@ -64,7 +64,7 @@ int OpusAudioRenderer::setup(const one::protocol::OpusStreamInformation& stream)
     return opus_error == OPUS_OK ? -1 : opus_error;
   }
 
-  if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0) {
+  if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) {
     qWarning() << "Unable to initialize SDL audio:" << SDL_GetError();
     cleanup();
     return -1;
@@ -72,11 +72,10 @@ int OpusAudioRenderer::setup(const one::protocol::OpusStreamInformation& stream)
 
   SDL_AudioSpec requested {};
   requested.freq = stream.sample_rate;
-  requested.format = AUDIO_S16SYS;
-  requested.channels = static_cast<Uint8>(stream.channel_count);
-  requested.samples = 512;
-  impl_->device = SDL_OpenAudioDevice(nullptr, 0, &requested, nullptr, 0);
-  if (impl_->device == 0) {
+  requested.format = SDL_AUDIO_S16;
+  requested.channels = stream.channel_count;
+  impl_->stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &requested, nullptr, nullptr);
+  if (impl_->stream == nullptr) {
     qWarning() << "Unable to open audio output:" << SDL_GetError();
     cleanup();
     return -1;
@@ -95,26 +94,30 @@ int OpusAudioRenderer::setup(const one::protocol::OpusStreamInformation& stream)
 
 void OpusAudioRenderer::start() noexcept {
 #ifdef ONE_HAS_PC_MEDIA
-  if (impl_->device != 0) {
-    SDL_PauseAudioDevice(impl_->device, 0);
+  if (impl_->stream != nullptr && !SDL_ResumeAudioStreamDevice(impl_->stream)) {
+    qWarning() << "Unable to resume audio output:" << SDL_GetError();
   }
 #endif
 }
 
 void OpusAudioRenderer::stop() noexcept {
 #ifdef ONE_HAS_PC_MEDIA
-  if (impl_->device != 0) {
-    SDL_PauseAudioDevice(impl_->device, 1);
-    SDL_ClearQueuedAudio(impl_->device);
+  if (impl_->stream != nullptr) {
+    if (!SDL_PauseAudioStreamDevice(impl_->stream)) {
+      qWarning() << "Unable to pause audio output:" << SDL_GetError();
+    }
+    if (!SDL_ClearAudioStream(impl_->stream)) {
+      qWarning() << "Unable to clear queued audio:" << SDL_GetError();
+    }
   }
 #endif
 }
 
 void OpusAudioRenderer::cleanup() noexcept {
 #ifdef ONE_HAS_PC_MEDIA
-  if (impl_->device != 0) {
-    SDL_CloseAudioDevice(impl_->device);
-    impl_->device = 0;
+  if (impl_->stream != nullptr) {
+    SDL_DestroyAudioStream(impl_->stream);
+    impl_->stream = nullptr;
   }
   if (impl_->decoder != nullptr) {
     opus_multistream_decoder_destroy(impl_->decoder);
@@ -129,7 +132,7 @@ void OpusAudioRenderer::cleanup() noexcept {
 
 void OpusAudioRenderer::submit(const std::span<const std::byte> opus_sample) noexcept {
 #ifdef ONE_HAS_PC_MEDIA
-  if (impl_->decoder == nullptr || impl_->device == 0 || opus_sample.empty()) {
+  if (impl_->decoder == nullptr || impl_->stream == nullptr || opus_sample.empty()) {
     return;
   }
   const auto samples = opus_multistream_decode(
@@ -143,9 +146,9 @@ void OpusAudioRenderer::submit(const std::span<const std::byte> opus_sample) noe
     qWarning() << "Unable to decode Opus audio packet:" << opus_strerror(samples);
     return;
   }
-  const auto bytes = static_cast<Uint32>(
+  const auto bytes = static_cast<int>(
       samples * impl_->channels * static_cast<int>(sizeof(opus_int16)));
-  if (SDL_QueueAudio(impl_->device, impl_->decoded_samples.data(), bytes) != 0) {
+  if (!SDL_PutAudioStreamData(impl_->stream, impl_->decoded_samples.data(), bytes)) {
     qWarning() << "Unable to queue decoded audio:" << SDL_GetError();
   }
 #else

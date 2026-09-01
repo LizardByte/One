@@ -45,6 +45,66 @@ struct KeyModifiers {
   bool meta {false};
 };
 
+enum class ControllerType {
+  unknown,
+  xbox,
+  playstation,
+  nintendo,
+  steam,
+};
+
+enum class ControllerButton : std::uint32_t {
+  dpad_up = 1U << 0U,
+  dpad_down = 1U << 1U,
+  dpad_left = 1U << 2U,
+  dpad_right = 1U << 3U,
+  start = 1U << 4U,
+  back = 1U << 5U,
+  left_stick = 1U << 6U,
+  right_stick = 1U << 7U,
+  left_shoulder = 1U << 8U,
+  right_shoulder = 1U << 9U,
+  guide = 1U << 10U,
+  a = 1U << 11U,
+  b = 1U << 12U,
+  x = 1U << 13U,
+  y = 1U << 14U,
+  paddle_1 = 1U << 15U,
+  paddle_2 = 1U << 16U,
+  paddle_3 = 1U << 17U,
+  paddle_4 = 1U << 18U,
+  touchpad = 1U << 19U,
+  misc = 1U << 20U,
+};
+
+using ControllerButtonMask = std::uint32_t;
+
+[[nodiscard]] constexpr ControllerButtonMask controller_button(const ControllerButton button) noexcept {
+  return static_cast<ControllerButtonMask>(button);
+}
+
+struct ControllerCapabilities {
+  bool analog_triggers {false};
+  bool rumble {false};
+  bool trigger_rumble {false};
+  bool touchpad {false};
+  bool dual_touchpad {false};
+  bool accelerometer {false};
+  bool gyroscope {false};
+  bool battery_state {false};
+  bool rgb_led {false};
+};
+
+struct ControllerState {
+  ControllerButtonMask buttons {0};
+  std::uint8_t left_trigger {0};
+  std::uint8_t right_trigger {0};
+  std::int16_t left_stick_x {0};
+  std::int16_t left_stick_y {0};
+  std::int16_t right_stick_x {0};
+  std::int16_t right_stick_y {0};
+};
+
 enum class VideoBufferType {
   picture,
   sequence_parameter_set,
@@ -207,6 +267,19 @@ class StreamingSession final {
       KeyModifiers modifiers,
       bool normalized = true) noexcept;
   [[nodiscard]] int send_utf8_text(std::string_view text) noexcept;
+  [[nodiscard]] int send_controller_arrival(
+      std::uint8_t controllerNumber,
+      std::uint16_t activeControllerMask,
+      ControllerType type,
+      ControllerButtonMask supportedButtons,
+      ControllerCapabilities capabilities) noexcept;
+  [[nodiscard]] int send_controller_state(
+      std::uint8_t controllerNumber,
+      std::uint16_t activeControllerMask,
+      const ControllerState& state) noexcept;
+  [[nodiscard]] int send_controller_departure(
+      std::uint8_t controllerNumber,
+      std::uint16_t activeControllerMask) noexcept;
 
  private:
   struct Impl;
