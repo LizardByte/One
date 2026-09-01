@@ -30,14 +30,18 @@ The Qt interface has three responsive modes selected from device capabilities:
 Android determines television mode through `UiModeManager`. tvOS selects television mode at compile time. All builds
 can preview another mode with `--ui-mode=desktop|touch|television` or the `ONE_UI_MODE` environment variable.
 
-The streaming surface remains platform-native. QML hosts the surface and draws menus or diagnostics over it without
-copying decoded frames through the UI layer.
+The final streaming surface remains platform-native. QML hosts the surface and draws menus or diagnostics over it
+without copying decoded frames through the UI layer. The initial desktop bring-up backend deliberately uses FFmpeg
+software decoding and a copied `QImage`; it is a protocol-integration path, not the final zero-copy renderer.
 
 `core/protocol` owns the stream configuration, per-session cryptographic input key, launch parameters, and
 `moonlight-common-c` lifecycle. Platform media adapters receive One-owned encoded-video and Opus views rather than
 vendor structs. Because `moonlight-common-c` currently stores connection state globally, the boundary enforces one
 active stream per process. HTTP `/launch` or `/resume` must not be sent until compatible audio and video adapters are
 ready to start the protocol session immediately.
+
+Sunshine's FFmpeg package is encoder-focused and is not a client dependency. One's eventual bundled FFmpeg build
+must be decoder-only and contain the codecs needed by the negotiated client formats.
 
 ## Required design constraints
 

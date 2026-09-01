@@ -1,6 +1,7 @@
 #include "launch_request.hpp"
 
 #include <QNetworkProxy>
+#include <QDebug>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QSslCertificate>
@@ -174,5 +175,49 @@ void LaunchClient::send(
       return;
     }
     emit succeeded(stable_id, options.application_id, *response);
+  });
+}
+
+void LaunchClient::cancel(
+    const QString& stable_id,
+    const QString& address,
+    const quint16 https_port,
+    const QByteArray& server_certificate_pem) {
+  const QSslCertificate server_certificate(server_certificate_pem);
+  if (stable_id.isEmpty() || address.isEmpty() || https_port == 0 || server_certificate.isNull()) {
+    return;
+  }
+
+  QUrl url;
+  url.setScheme(QStringLiteral("https"));
+  url.setHost(address);
+  url.setPort(https_port);
+  url.setPath(QStringLiteral("/cancel"));
+  QUrlQuery query;
+  query.addQueryItem(QStringLiteral("uniqueid"), identity_.uniqueId());
+  query.addQueryItem(QStringLiteral("uuid"), QString::fromLatin1(QUuid::createUuid().toRfc4122().toHex()));
+  url.setQuery(query);
+
+  QNetworkRequest request(url);
+  request.setTransferTimeout(5000);
+  request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
+  request.setAttribute(QNetworkRequest::ConnectionCacheExpiryTimeoutSecondsAttribute, 0);
+  request.setSslConfiguration(identity_.sslConfiguration());
+
+  auto* reply = network_.get(request);
+  connect(reply, &QNetworkReply::sslErrors, reply, [reply, server_certificate](const QList<QSslError>& errors) {
+    for (const auto& ssl_error : errors) {
+      if (ssl_error.certificate() != server_certificate) {
+        return;
+      }
+    }
+    reply->ignoreSslErrors(errors);
+  });
+  connect(reply, &QNetworkReply::finished, reply, [reply, server_certificate]() {
+    if (reply->error() != QNetworkReply::NoError ||
+        reply->sslConfiguration().peerCertificate() != server_certificate) {
+      qWarning() << "Unable to cancel the host application:" << reply->errorString();
+    }
+    reply->deleteLater();
   });
 }

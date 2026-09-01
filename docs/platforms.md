@@ -2,9 +2,9 @@
 
 | Target | Required | Interface | Initial bootstrap status |
 | --- | --- | --- | --- |
-| Windows | Yes | Shared Qt Quick | Project shell added |
-| Linux | Yes | Shared Qt Quick | Project shell added |
-| macOS | Yes | Shared Qt Quick | Project shell added |
+| Windows | Yes | Shared Qt Quick | Initial H.264 software video and Opus/SDL audio path added |
+| Linux | Yes | Shared Qt Quick | Desktop media backend added; runtime validation pending |
+| macOS | Yes | Shared Qt Quick | Desktop media backend added; runtime validation pending |
 | Android mobile/tablet | Yes | Shared Qt Quick | Touch mode added |
 | Android TV | Yes | Shared Qt Quick | `UiModeManager` television detection added |
 | iPhone/iPad | Yes | Shared Qt Quick | Touch compile-time path added |
@@ -24,4 +24,3 @@ behavior, a signed-device spike must prove:
 
 If maintaining the required Qt tvOS support proves impractical, the fallback is a native tvOS interface consuming the
 same core/view model. Apple TV itself is not optional.
-

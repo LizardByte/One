@@ -49,6 +49,11 @@ class LaunchClient final : public QObject {
       LaunchAction action,
       const one::protocol::StreamLaunchParameters& stream,
       const LaunchRequestOptions& options);
+  void cancel(
+      const QString& stableId,
+      const QString& address,
+      quint16 httpsPort,
+      const QByteArray& serverCertificate);
 
  signals:
   void succeeded(const QString& stableId, int applicationId, const LaunchResponse& response);

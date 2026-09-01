@@ -21,8 +21,10 @@ One is in its initial bootstrap phase. The repository currently contains:
 - A shared Qt Quick shell for desktop, Android, Android TV, iOS, and Apple TV.
 - Persistent client identity, `/serverinfo` queries, the GameStream certificate pairing exchange, and authenticated
   application-list browsing in the Qt client.
-- Exact authenticated `/launch` and `/resume` request handling plus a renderer-neutral `moonlight-common-c` session
-  lifecycle boundary. The UI remains launch-gated until a platform video decoder is connected.
+- Exact authenticated `/launch`, `/resume`, and `/cancel` request handling plus a renderer-neutral
+  `moonlight-common-c` session lifecycle boundary.
+- An initial PC stream path with FFmpeg software video decoding, Opus decoding, and SDL audio output. It currently
+  negotiates H.264 SDR while the hardware-decoder and input backends are still being built.
 - Android TV detection and a tvOS compile-time path.
 - A placeholder boundary for the separate Xbox UWP XAML interface.
 - Recorded upstream revisions for each source client that has not yet been brought behind One-owned interfaces.
@@ -49,26 +51,36 @@ ctest --preset core
 
 ## Build the shared Qt client
 
-Install Qt 6.8 or later with Qt Quick and Qt Quick Controls, then configure with its prefix:
+Install Qt 6.8 or later with Qt Quick and Qt Quick Controls. Desktop streaming also requires a decoder-enabled
+FFmpeg, Opus, and SDL2 development package. Then configure with the dependency prefix:
 
 ```shell
 cmake -S . -B build/qt -DCMAKE_PREFIX_PATH=/path/to/Qt -DONE_BUILD_QT_CLIENT=ON
 cmake --build build/qt
 ```
 
-Launch the desktop build directly from its build directory (for example, `./build/qt/one` on Unix-like systems or
-`.\build\qt\one.exe` on Windows).
+Launch the desktop build directly from its build directory (for example, `./build/qt/one` on Unix-like systems).
+When using the shared MSYS2 UCRT64 Qt and FFmpeg packages on Windows, include their DLL directory in `PATH`:
 
-`ONE_PREFER_STATIC_DEPENDENCIES` defaults to `ON`. One, `moonlight-common-c`, qmdnsengine, and OpenSSL are linked
-statically when the toolchain provides static variants. Qt remains dynamic when configuring against a shared Qt
-installation; use a static Qt toolchain when a fully static Qt build is supported by the target platform.
+```powershell
+$env:PATH = "C:\msys64\ucrt64\bin;$env:PATH"
+.\build\qt\one.exe
+```
+
+Open a paired computer, choose an application, and select **Stream**. This first backend displays video and plays
+audio, but it does not send keyboard, mouse, or controller input yet.
+
+`ONE_PREFER_STATIC_DEPENDENCIES` defaults to `ON`. One, `moonlight-common-c`, qmdnsengine, OpenSSL, Opus, SDL2, and
+the MinGW runtime are linked statically when the toolchain provides usable static variants. Qt remains dynamic when
+configuring against a shared Qt installation. The general-purpose MSYS2 FFmpeg static closure is not usable here;
+One temporarily links its FFmpeg ABI dynamically until the project has a purpose-built, decoder-only FFmpeg package.
+Use a static Qt toolchain when a fully static Qt build is supported by the target platform.
 
 Use `--ui-mode=desktop`, `--ui-mode=touch`, or `--ui-mode=television` to preview responsive modes on a desktop
 build.
 
 Platform packaging and native streaming backends will be added as each existing client is brought into the shared
-architecture. PC video decoding requires a dedicated decoder-enabled FFmpeg build; One does not reuse Sunshine's
-encoder-focused FFmpeg build.
+architecture. One does not reuse Sunshine's encoder-focused FFmpeg build.
 
 ## License
 

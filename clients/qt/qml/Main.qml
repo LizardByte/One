@@ -26,6 +26,21 @@ ApplicationWindow {
         GamesPage {
             televisionMode: root.televisionMode
             applicationModel: ApplicationModel
+            streamingController: StreamingController
+            onBackRequested: computersStack.pop()
+            onStreamRequested: (applicationId, title) => computersStack.push(streamPageComponent, {
+                "applicationId": applicationId,
+                "applicationTitle": title
+            })
+        }
+    }
+
+    Component {
+        id: streamPageComponent
+
+        StreamPage {
+            televisionMode: root.televisionMode
+            streamingController: StreamingController
             onBackRequested: computersStack.pop()
         }
     }

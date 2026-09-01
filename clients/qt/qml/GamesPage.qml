@@ -10,7 +10,9 @@ Page {
     required property bool televisionMode
     required property string hostName
     required property var applicationModel
+    required property var streamingController
     signal backRequested()
+    signal streamRequested(int applicationId, string title)
 
     readonly property int minimumCardWidth: televisionMode ? 260 : 210
     readonly property int columnCount: Math.max(1, Math.floor(gameGrid.width / minimumCardWidth))
@@ -148,9 +150,14 @@ Page {
 
                         Item { Layout.fillWidth: true }
 
-                        Label {
-                            text: qsTr("Launch support next")
-                            opacity: 0.55
+                        Button {
+                            text: qsTr("Stream")
+                            enabled: page.streamingController.available && !page.streamingController.busy
+                            focusPolicy: Qt.StrongFocus
+                            onClicked: page.streamRequested(gameCard.applicationId, gameCard.title)
+
+                            ToolTip.visible: hovered && !enabled
+                            ToolTip.text: page.streamingController.unavailableReason
                         }
                     }
                 }
