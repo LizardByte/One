@@ -25,6 +25,8 @@ int main() {
   <HttpsPort>47984</HttpsPort>
   <ServerCodecModeSupport>65793</ServerCodecModeSupport>
   <PairStatus>1</PairStatus>
+  <currentgame>42</currentgame>
+  <state>SUNSHINE_SERVER_BUSY</state>
 </root>)xml";
 
   QString error;
@@ -36,6 +38,12 @@ int main() {
   failures += expect(info && info->paired, "pairing status should parse");
   failures += expect(info && info->https_port == 47984, "HTTPS port should parse");
   failures += expect(info && info->codec_mode_support == 65793, "codec support should parse");
+  failures += expect(info && info->current_game_id == 42, "running application should parse while the host is busy");
+
+  const auto stale_game = parseServerInfo(
+      R"xml(<root status_code="200"><uniqueid>host</uniqueid><currentgame>42</currentgame><state>SUNSHINE_SERVER_FREE</state></root>)xml",
+      &error);
+  failures += expect(stale_game && stale_game->current_game_id == 0, "stale game ID should be ignored while the host is free");
 
   const auto rejected = parseServerInfo("<root status_code=\"503\" status_message=\"Busy\"/>", &error);
   failures += expect(!rejected.has_value() && error == QStringLiteral("Busy"), "error response should be rejected");

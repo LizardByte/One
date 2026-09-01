@@ -1,10 +1,14 @@
 #include "one/protocol/stream_configuration.hpp"
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
 #include <stdexcept>
 #include <utility>
 
 extern "C" {
 #include "Limelight.h"
+#include "PlatformCrypto.h"
 }
 
 namespace one::protocol {
@@ -70,6 +74,18 @@ int native_video_formats(const VideoFormats& formats) noexcept {
   return native_formats;
 }
 
+std::string hex_string(const char* data, const std::size_t size) {
+  constexpr std::array<char, 16> digits {
+      '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+  std::string encoded(size * 2, '0');
+  for (std::size_t index = 0; index < size; ++index) {
+    const auto value = static_cast<unsigned char>(data[index]);
+    encoded[index * 2] = digits[value >> 4U];
+    encoded[index * 2 + 1] = digits[value & 0x0FU];
+  }
+  return encoded;
+}
+
 void validate(const StreamSettings& settings) {
   if (settings.width <= 0 || settings.height <= 0) {
     throw std::invalid_argument("stream dimensions must be positive");
@@ -108,6 +124,11 @@ struct StreamConfiguration::Impl {
     native.colorRange = native_color_range(settings.color_range);
     native.encryptionFlags = (settings.encrypt_audio ? ENCFLG_AUDIO : ENCFLG_NONE) |
                              (settings.encrypt_video ? ENCFLG_VIDEO : ENCFLG_NONE);
+    PltGenerateRandomData(
+        reinterpret_cast<unsigned char*>(native.remoteInputAesKey),
+        static_cast<int>(sizeof(native.remoteInputAesKey)));
+    // GameStream uses only the first four IV bytes as the remote-input key ID.
+    PltGenerateRandomData(reinterpret_cast<unsigned char*>(native.remoteInputAesIv), 4);
   }
 
   StreamSettings settings;
@@ -123,6 +144,29 @@ StreamConfiguration& StreamConfiguration::operator=(StreamConfiguration&&) noexc
 
 const StreamSettings& StreamConfiguration::settings() const noexcept {
   return impl_->settings;
+}
+
+StreamLaunchParameters StreamConfiguration::launch_parameters() const {
+  const auto& native = impl_->native;
+  const auto* iv = reinterpret_cast<const unsigned char*>(native.remoteInputAesIv);
+  const auto key_id = (static_cast<std::uint32_t>(iv[0]) << 24U) |
+                      (static_cast<std::uint32_t>(iv[1]) << 16U) |
+                      (static_cast<std::uint32_t>(iv[2]) << 8U) |
+                      static_cast<std::uint32_t>(iv[3]);
+  return {
+      .width = native.width,
+      .height = native.height,
+      .frames_per_second = native.fps,
+      .surround_audio_info = SURROUNDAUDIOINFO_FROM_AUDIO_CONFIGURATION(native.audioConfiguration),
+      .remote_input_aes_key_hex = hex_string(native.remoteInputAesKey, sizeof(native.remoteInputAesKey)),
+      .remote_input_aes_key_id = key_id,
+      .hdr_requested = (native.supportedVideoFormats & VIDEO_FORMAT_MASK_10BIT) != 0,
+      .moonlight_query_parameters = launch_url_query_parameters(),
+  };
+}
+
+void* StreamConfiguration::native_configuration() noexcept {
+  return &impl_->native;
 }
 
 std::string launch_url_query_parameters() {

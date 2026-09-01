@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -17,6 +19,16 @@ ApplicationWindow {
     minimumHeight: 600
     visible: true
     title: qsTr("One")
+
+    Component {
+        id: gamesPageComponent
+
+        GamesPage {
+            televisionMode: root.televisionMode
+            applicationModel: ApplicationModel
+            onBackRequested: computersStack.pop()
+        }
+    }
 
     header: ToolBar {
         RowLayout {
@@ -70,8 +82,17 @@ ApplicationWindow {
                 Layout.fillHeight: true
                 currentIndex: root.currentPage
 
-                ComputersPage {
-                    televisionMode: root.televisionMode
+                StackView {
+                    id: computersStack
+
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+
+                    initialItem: ComputersPage {
+                        televisionMode: root.televisionMode
+                        computerModel: ComputerModel
+                        onGamesRequested: hostName => computersStack.push(gamesPageComponent, { "hostName": hostName })
+                    }
                 }
 
                 SettingsPage {
@@ -93,4 +114,3 @@ ApplicationWindow {
         }
     }
 }
-

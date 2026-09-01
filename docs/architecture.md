@@ -33,6 +33,12 @@ can preview another mode with `--ui-mode=desktop|touch|television` or the `ONE_U
 The streaming surface remains platform-native. QML hosts the surface and draws menus or diagnostics over it without
 copying decoded frames through the UI layer.
 
+`core/protocol` owns the stream configuration, per-session cryptographic input key, launch parameters, and
+`moonlight-common-c` lifecycle. Platform media adapters receive One-owned encoded-video and Opus views rather than
+vendor structs. Because `moonlight-common-c` currently stores connection state globally, the boundary enforces one
+active stream per process. HTTP `/launch` or `/resume` must not be sent until compatible audio and video adapters are
+ready to start the protocol session immediately.
+
 ## Required design constraints
 
 - Android TV and Apple TV are release requirements, not optional future targets.

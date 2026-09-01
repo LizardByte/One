@@ -5,12 +5,22 @@ add_subdirectory(vendor/qmdnsengine qmdnsengine EXCLUDE_FROM_ALL)
 find_package(OpenSSL 1.1 REQUIRED COMPONENTS Crypto)
 
 add_library(one_qt_client STATIC
+    src/application.cpp
+    src/application.hpp
+    src/application_list_client.cpp
+    src/application_list_client.hpp
+    src/application_list_model.cpp
+    src/application_list_model.hpp
     src/client_identity.cpp
     src/client_identity.hpp
     src/host_discovery_service.cpp
     src/host_discovery_service.hpp
     src/host_list_model.cpp
     src/host_list_model.hpp
+    src/host_settings.cpp
+    src/host_settings.hpp
+    src/launch_request.cpp
+    src/launch_request.hpp
     src/pairing_client.cpp
     src/pairing_client.hpp
     src/server_info.cpp
@@ -22,7 +32,7 @@ add_library(One::QtClient ALIAS one_qt_client)
 
 target_include_directories(one_qt_client PUBLIC src)
 target_link_libraries(one_qt_client
-    PUBLIC One::Core Qt6::Concurrent Qt6::Core Qt6::Network
+    PUBLIC One::Core One::Protocol Qt6::Concurrent Qt6::Core Qt6::Network
     PRIVATE OpenSSL::Crypto qmdnsengine
 )
 if(WIN32 AND ONE_PREFER_STATIC_DEPENDENCIES)
@@ -57,6 +67,7 @@ qt_add_qml_module(one
         qml/AppNavigation.qml
         qml/AboutPage.qml
         qml/ComputersPage.qml
+        qml/GamesPage.qml
         qml/SettingsPage.qml
 )
 
@@ -83,6 +94,18 @@ if(ONE_BUILD_TESTS)
     )
     target_link_libraries(one_pairing_client_test PRIVATE One::QtClient)
     add_test(NAME one.qt.pairing_client COMMAND one_pairing_client_test)
+
+    add_executable(one_application_list_test
+        tests/application_list_test.cpp
+    )
+    target_link_libraries(one_application_list_test PRIVATE One::QtClient)
+    add_test(NAME one.qt.application_list COMMAND one_application_list_test)
+
+    add_executable(one_launch_request_test
+        tests/launch_request_test.cpp
+    )
+    target_link_libraries(one_launch_request_test PRIVATE One::QtClient)
+    add_test(NAME one.qt.launch_request COMMAND one_launch_request_test)
 
     foreach(ui_mode IN ITEMS desktop touch television)
         add_test(

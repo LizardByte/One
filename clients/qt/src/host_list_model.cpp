@@ -3,23 +3,13 @@
 #include <limits>
 #include <utility>
 
-#include <QSettings>
 #include <QString>
-#include <QUrl>
 
 #include "client_identity.hpp"
 #include "host_discovery_service.hpp"
+#include "host_settings.hpp"
 #include "pairing_client.hpp"
 #include "server_info_client.hpp"
-
-namespace {
-
-QString server_certificate_key(const QString& stable_id) {
-  return QStringLiteral("hosts/%1/serverCertificate")
-      .arg(QString::fromLatin1(QUrl::toPercentEncoding(stable_id)));
-}
-
-}  // namespace
 
 HostListModel::HostListModel(QObject* parent, const bool enableNetworkServices) : QAbstractListModel(parent) {
   if (!enableNetworkServices) {
@@ -171,6 +161,35 @@ QString HostListModel::pairHost(const int row) {
   return pin;
 }
 
+bool HostListModel::openHost(const int row) {
+  if (row < 0 || row >= rowCount()) {
+    return false;
+  }
+
+  const auto& host = catalog_.hosts()[static_cast<std::size_t>(row)];
+  if (host.reachability != one::HostReachability::online ||
+      host.pairing != one::HostPairingState::paired || host.stable_id.empty()) {
+    return false;
+  }
+
+  const auto stable_id = QString::fromStdString(host.stable_id);
+  const auto server_info = server_info_by_id_.constFind(stable_id);
+  if (server_info == server_info_by_id_.constEnd()) {
+    return false;
+  }
+
+  emit hostOpened(
+      stable_id,
+      QString::fromStdString(host.display_name),
+      QString::fromStdString(host.endpoint.address),
+      server_info->https_port,
+      server_info->app_version,
+      server_info->gfe_version,
+      server_info->codec_mode_support,
+      server_info->current_game_id);
+  return true;
+}
+
 void HostListModel::mergeHost(one::HostUpdate update, const bool queryServerInfo) {
   const auto address = QString::fromStdString(update.endpoint.address);
   const auto port = update.endpoint.port;
@@ -206,7 +225,7 @@ void HostListModel::handleServerInfo(
   if (const auto* existing = catalog_.find_by_id(stable_id);
       existing != nullptr && existing->pairing == one::HostPairingState::pairing) {
     pairing_state = one::HostPairingState::pairing;
-  } else if (info.paired || !QSettings().value(server_certificate_key(info.stable_id)).toByteArray().isEmpty()) {
+  } else if (info.paired || !loadServerCertificate(info.stable_id).isEmpty()) {
     pairing_state = one::HostPairingState::paired;
   }
 
@@ -224,7 +243,7 @@ void HostListModel::handleServerInfo(
 
 void HostListModel::handlePairingCompleted(const QString& stable_id, const PairingResult& result) {
   if (result.success) {
-    QSettings().setValue(server_certificate_key(stable_id), result.server_certificate);
+    saveServerCertificate(stable_id, result.server_certificate);
   }
   static_cast<void>(catalog_.set_pairing_state(
       stable_id.toStdString(),

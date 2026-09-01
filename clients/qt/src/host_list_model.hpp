@@ -35,10 +35,20 @@ class HostListModel final : public QAbstractListModel {
 
   Q_INVOKABLE bool addManualHost(const QString& address, int port = 47989);
   Q_INVOKABLE QString pairHost(int row);
+  Q_INVOKABLE bool openHost(int row);
 
  signals:
   void countChanged();
   void pairingCompleted(const QString& stableId, bool success, const QString& error);
+  void hostOpened(
+      const QString& stableId,
+      const QString& displayName,
+      const QString& address,
+      quint16 httpsPort,
+      const QString& appVersion,
+      const QString& gfeVersion,
+      int codecModeSupport,
+      int currentGameId);
 
  private:
   void mergeHost(one::HostUpdate update, bool queryServerInfo);

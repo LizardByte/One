@@ -29,3 +29,11 @@ add_executable(one_protocol_test
 target_link_libraries(one_protocol_test PRIVATE One::Protocol)
 
 add_test(NAME one.protocol COMMAND one_protocol_test)
+
+add_executable(one_streaming_session_test
+    protocol/streaming_session_test.cpp
+)
+
+target_link_libraries(one_streaming_session_test PRIVATE One::Protocol)
+
+add_test(NAME one.protocol.streaming_session COMMAND one_streaming_session_test)

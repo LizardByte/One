@@ -20,6 +20,7 @@ endif()
 
 add_library(one_protocol STATIC
     src/stream_configuration.cpp
+    src/streaming_session.cpp
 )
 add_library(One::Protocol ALIAS one_protocol)
 

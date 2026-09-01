@@ -46,7 +46,18 @@ std::optional<ServerInfo> parseServerInfo(const QByteArray& xml, QString* error)
   info.display_name = values.value(QStringLiteral("hostname"));
   info.app_version = values.value(QStringLiteral("appversion"));
   info.gfe_version = values.value(QStringLiteral("GfeVersion"));
+  info.state = values.value(QStringLiteral("state"));
   info.paired = values.value(QStringLiteral("PairStatus")) == QStringLiteral("1");
+
+  // Older NVIDIA hosts can retain currentgame after the session has ended, so
+  // it is only meaningful while the server explicitly reports itself busy.
+  if (info.state.endsWith(QStringLiteral("_SERVER_BUSY"))) {
+    bool game_valid = false;
+    const auto current_game = values.value(QStringLiteral("currentgame")).toInt(&game_valid);
+    if (game_valid && current_game > 0) {
+      info.current_game_id = current_game;
+    }
+  }
 
   bool port_valid = false;
   const auto https_port = values.value(QStringLiteral("HttpsPort")).toUShort(&port_valid);

@@ -19,7 +19,10 @@ One is in its initial bootstrap phase. The repository currently contains:
 - A pinned `moonlight-common-c` streaming-protocol submodule with a One-owned C++ boundary.
 - A pinned `qmdnsengine` submodule providing real `_nvstream._tcp` host discovery.
 - A shared Qt Quick shell for desktop, Android, Android TV, iOS, and Apple TV.
-- Persistent client identity, `/serverinfo` queries, and the GameStream certificate pairing exchange in the Qt client.
+- Persistent client identity, `/serverinfo` queries, the GameStream certificate pairing exchange, and authenticated
+  application-list browsing in the Qt client.
+- Exact authenticated `/launch` and `/resume` request handling plus a renderer-neutral `moonlight-common-c` session
+  lifecycle boundary. The UI remains launch-gated until a platform video decoder is connected.
 - Android TV detection and a tvOS compile-time path.
 - A placeholder boundary for the separate Xbox UWP XAML interface.
 - Recorded upstream revisions for each source client that has not yet been brought behind One-owned interfaces.
@@ -64,7 +67,8 @@ Use `--ui-mode=desktop`, `--ui-mode=touch`, or `--ui-mode=television` to preview
 build.
 
 Platform packaging and native streaming backends will be added as each existing client is brought into the shared
-architecture.
+architecture. PC video decoding requires a dedicated decoder-enabled FFmpeg build; One does not reuse Sunshine's
+encoder-focused FFmpeg build.
 
 ## License
 

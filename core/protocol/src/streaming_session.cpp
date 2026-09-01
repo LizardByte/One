@@ -1,0 +1,453 @@
+#include "one/protocol/streaming_session.hpp"
+
+#include <atomic>
+#include <cstdarg>
+#include <cstdio>
+#include <utility>
+
+extern "C" {
+#include "Limelight.h"
+}
+
+namespace one::protocol {
+namespace {
+
+VideoBufferType video_buffer_type(const int type) noexcept {
+  switch (type) {
+    case BUFFER_TYPE_PICDATA:
+      return VideoBufferType::picture;
+    case BUFFER_TYPE_SPS:
+      return VideoBufferType::sequence_parameter_set;
+    case BUFFER_TYPE_PPS:
+      return VideoBufferType::picture_parameter_set;
+    case BUFFER_TYPE_VPS:
+      return VideoBufferType::video_parameter_set;
+    default:
+      return VideoBufferType::unknown;
+  }
+}
+
+VideoFormat video_format(const int format) noexcept {
+  switch (format) {
+    case VIDEO_FORMAT_H264:
+      return VideoFormat::h264;
+    case VIDEO_FORMAT_H264_HIGH8_444:
+      return VideoFormat::h264_444;
+    case VIDEO_FORMAT_H265:
+      return VideoFormat::hevc;
+    case VIDEO_FORMAT_H265_MAIN10:
+      return VideoFormat::hevc_10_bit;
+    case VIDEO_FORMAT_H265_REXT8_444:
+      return VideoFormat::hevc_444;
+    case VIDEO_FORMAT_H265_REXT10_444:
+      return VideoFormat::hevc_10_bit_444;
+    case VIDEO_FORMAT_AV1_MAIN8:
+      return VideoFormat::av1;
+    case VIDEO_FORMAT_AV1_MAIN10:
+      return VideoFormat::av1_10_bit;
+    case VIDEO_FORMAT_AV1_HIGH8_444:
+      return VideoFormat::av1_444;
+    case VIDEO_FORMAT_AV1_HIGH10_444:
+      return VideoFormat::av1_10_bit_444;
+    default:
+      return VideoFormat::unknown;
+  }
+}
+
+ColorSpace color_space(const std::uint8_t color_space) noexcept {
+  switch (color_space) {
+    case COLORSPACE_REC_601:
+      return ColorSpace::rec_601;
+    case COLORSPACE_REC_2020:
+      return ColorSpace::rec_2020;
+    case COLORSPACE_REC_709:
+    default:
+      return ColorSpace::rec_709;
+  }
+}
+
+AudioLayout audio_layout(const int configuration) noexcept {
+  switch (configuration) {
+    case AUDIO_CONFIGURATION_51_SURROUND:
+      return AudioLayout::surround_5_1;
+    case AUDIO_CONFIGURATION_71_SURROUND:
+      return AudioLayout::surround_7_1;
+    case AUDIO_CONFIGURATION_STEREO:
+    default:
+      return AudioLayout::stereo;
+  }
+}
+
+int native_video_capabilities(const VideoRendererCapabilities& capabilities) noexcept {
+  int native = capabilities.direct_submit ? CAPABILITY_DIRECT_SUBMIT : 0;
+  native |= capabilities.reference_frame_invalidation_h264 ? CAPABILITY_REFERENCE_FRAME_INVALIDATION_AVC : 0;
+  native |= capabilities.reference_frame_invalidation_hevc ? CAPABILITY_REFERENCE_FRAME_INVALIDATION_HEVC : 0;
+  native |= capabilities.reference_frame_invalidation_av1 ? CAPABILITY_REFERENCE_FRAME_INVALIDATION_AV1 : 0;
+  native |= CAPABILITY_SLICES_PER_FRAME(capabilities.slices_per_frame);
+  return native;
+}
+
+int native_audio_capabilities(const AudioRendererCapabilities& capabilities) noexcept {
+  int native = capabilities.direct_submit ? CAPABILITY_DIRECT_SUBMIT : 0;
+  native |= capabilities.slow_decoder ? CAPABILITY_SLOW_OPUS_DECODER : 0;
+  native |= capabilities.arbitrary_audio_duration ? CAPABILITY_SUPPORTS_ARBITRARY_AUDIO_DURATION : 0;
+  return native;
+}
+
+std::string_view stage_name(const int stage) noexcept {
+  const auto* name = LiGetStageName(stage);
+  return name == nullptr ? std::string_view {} : std::string_view {name};
+}
+
+}  // namespace
+
+EncodedVideoFrameView::EncodedVideoFrameView(const void* native) noexcept : native_(native) {}
+
+int EncodedVideoFrameView::frame_number() const noexcept {
+  return static_cast<const DECODE_UNIT*>(native_)->frameNumber;
+}
+
+bool EncodedVideoFrameView::key_frame() const noexcept {
+  return static_cast<const DECODE_UNIT*>(native_)->frameType == FRAME_TYPE_IDR;
+}
+
+std::uint16_t EncodedVideoFrameView::host_processing_latency() const noexcept {
+  return static_cast<const DECODE_UNIT*>(native_)->frameHostProcessingLatency;
+}
+
+std::uint64_t EncodedVideoFrameView::receive_time_us() const noexcept {
+  return static_cast<const DECODE_UNIT*>(native_)->receiveTimeUs;
+}
+
+std::uint64_t EncodedVideoFrameView::enqueue_time_us() const noexcept {
+  return static_cast<const DECODE_UNIT*>(native_)->enqueueTimeUs;
+}
+
+std::uint64_t EncodedVideoFrameView::presentation_time_us() const noexcept {
+  return static_cast<const DECODE_UNIT*>(native_)->presentationTimeUs;
+}
+
+std::uint32_t EncodedVideoFrameView::rtp_timestamp() const noexcept {
+  return static_cast<const DECODE_UNIT*>(native_)->rtpTimestamp;
+}
+
+std::size_t EncodedVideoFrameView::data_size() const noexcept {
+  return static_cast<std::size_t>(static_cast<const DECODE_UNIT*>(native_)->fullLength);
+}
+
+bool EncodedVideoFrameView::hdr_active() const noexcept {
+  return static_cast<const DECODE_UNIT*>(native_)->hdrActive;
+}
+
+ColorSpace EncodedVideoFrameView::color_space() const noexcept {
+  return one::protocol::color_space(static_cast<const DECODE_UNIT*>(native_)->colorspace);
+}
+
+std::size_t EncodedVideoFrameView::buffer_count() const noexcept {
+  std::size_t count = 0;
+  for (auto* entry = static_cast<const DECODE_UNIT*>(native_)->bufferList; entry != nullptr; entry = entry->next) {
+    ++count;
+  }
+  return count;
+}
+
+EncodedVideoBufferView EncodedVideoFrameView::buffer(const std::size_t index) const noexcept {
+  auto* entry = static_cast<const DECODE_UNIT*>(native_)->bufferList;
+  for (std::size_t current = 0; entry != nullptr && current < index; ++current) {
+    entry = entry->next;
+  }
+  if (entry == nullptr) {
+    return {};
+  }
+  return {
+      .bytes = std::span<const std::byte> {
+          reinterpret_cast<const std::byte*>(entry->data),
+          static_cast<std::size_t>(entry->length)},
+      .type = video_buffer_type(entry->bufferType),
+  };
+}
+
+struct StreamingSession::Impl {
+  Impl(
+      ServerInformation requested_server,
+      StreamConfiguration& requested_configuration,
+      VideoRenderer& requested_video,
+      AudioRenderer& requested_audio,
+      ConnectionListener& requested_listener)
+      : server(std::move(requested_server)),
+        configuration(requested_configuration),
+        video(requested_video),
+        audio(requested_audio),
+        listener(requested_listener) {}
+
+  static Impl* current() noexcept {
+    return owner.load(std::memory_order_acquire);
+  }
+
+  static void stage_starting(const int stage) {
+    if (auto* session = current(); session != nullptr) {
+      session->listener.stage_starting(stage_name(stage));
+    }
+  }
+
+  static void stage_complete(const int stage) {
+    if (auto* session = current(); session != nullptr) {
+      session->listener.stage_complete(stage_name(stage));
+    }
+  }
+
+  static void stage_failed(const int stage, const int error_code) {
+    if (auto* session = current(); session != nullptr) {
+      session->listener.stage_failed(stage_name(stage), error_code);
+    }
+  }
+
+  static void connection_started() {
+    if (auto* session = current(); session != nullptr) {
+      session->running.store(true, std::memory_order_release);
+      session->listener.connection_started();
+    }
+  }
+
+  static void connection_terminated(const int error_code) {
+    if (auto* session = current(); session != nullptr) {
+      session->running.store(false, std::memory_order_release);
+      session->listener.connection_terminated(error_code);
+    }
+  }
+
+  static void log_message(const char* format, ...) {
+    auto* session = current();
+    if (session == nullptr || format == nullptr) {
+      return;
+    }
+    char message[2048] {};
+    va_list arguments;
+    va_start(arguments, format);
+    static_cast<void>(std::vsnprintf(message, sizeof(message), format, arguments));
+    va_end(arguments);
+    session->listener.log_message(message);
+  }
+
+  static void connection_status_changed(const int status) {
+    if (auto* session = current(); session != nullptr) {
+      session->listener.connection_status_changed(status);
+    }
+  }
+
+  static void hdr_mode_changed(const bool enabled) {
+    if (auto* session = current(); session != nullptr) {
+      session->listener.hdr_mode_changed(enabled);
+    }
+  }
+
+  static int video_setup(
+      const int format,
+      const int width,
+      const int height,
+      const int redraw_rate,
+      void*,
+      const int) {
+    auto* session = current();
+    return session == nullptr
+             ? -1
+             : session->video.setup({
+                   .format = video_format(format),
+                   .width = width,
+                   .height = height,
+                   .redraw_rate = redraw_rate,
+               });
+  }
+
+  static void video_start() {
+    if (auto* session = current(); session != nullptr) {
+      session->video.start();
+    }
+  }
+
+  static void video_stop() {
+    if (auto* session = current(); session != nullptr) {
+      session->video.stop();
+    }
+  }
+
+  static void video_cleanup() {
+    if (auto* session = current(); session != nullptr) {
+      session->video.cleanup();
+    }
+  }
+
+  static int video_submit(PDECODE_UNIT decode_unit) {
+    auto* session = current();
+    if (session == nullptr || decode_unit == nullptr) {
+      return DR_NEED_IDR;
+    }
+    return static_cast<int>(session->video.submit(EncodedVideoFrameView(decode_unit)));
+  }
+
+  static int audio_setup(
+      const int audio_configuration,
+      const POPUS_MULTISTREAM_CONFIGURATION opus,
+      void*,
+      const int) {
+    auto* session = current();
+    if (session == nullptr || opus == nullptr) {
+      return -1;
+    }
+    OpusStreamInformation stream {
+        .layout = audio_layout(audio_configuration),
+        .sample_rate = opus->sampleRate,
+        .channel_count = opus->channelCount,
+        .streams = opus->streams,
+        .coupled_streams = opus->coupledStreams,
+        .samples_per_frame = opus->samplesPerFrame,
+    };
+    for (std::size_t index = 0; index < stream.mapping.size(); ++index) {
+      stream.mapping[index] = opus->mapping[index];
+    }
+    return session->audio.setup(stream);
+  }
+
+  static void audio_start() {
+    if (auto* session = current(); session != nullptr) {
+      session->audio.start();
+    }
+  }
+
+  static void audio_stop() {
+    if (auto* session = current(); session != nullptr) {
+      session->audio.stop();
+    }
+  }
+
+  static void audio_cleanup() {
+    if (auto* session = current(); session != nullptr) {
+      session->audio.cleanup();
+    }
+  }
+
+  static void audio_submit(char* sample, const int length) {
+    if (auto* session = current(); session != nullptr && sample != nullptr && length > 0) {
+      session->audio.submit(std::span<const std::byte> {
+          reinterpret_cast<const std::byte*>(sample),
+          static_cast<std::size_t>(length)});
+    }
+  }
+
+  ServerInformation server;
+  StreamConfiguration& configuration;
+  VideoRenderer& video;
+  AudioRenderer& audio;
+  ConnectionListener& listener;
+  std::atomic_bool running {false};
+  bool owns_connection {false};
+
+  static std::atomic<Impl*> owner;
+};
+
+std::atomic<StreamingSession::Impl*> StreamingSession::Impl::owner {nullptr};
+
+StreamingSession::StreamingSession(
+    ServerInformation server,
+    StreamConfiguration& configuration,
+    VideoRenderer& video_renderer,
+    AudioRenderer& audio_renderer,
+    ConnectionListener& listener)
+    : impl_(std::make_unique<Impl>(
+          std::move(server),
+          configuration,
+          video_renderer,
+          audio_renderer,
+          listener)) {}
+
+StreamingSession::~StreamingSession() {
+  stop();
+}
+
+int StreamingSession::start() {
+  if (impl_->server.address.empty() || impl_->server.app_version.empty()) {
+    return invalid_server_information;
+  }
+
+  Impl* expected = nullptr;
+  if (!Impl::owner.compare_exchange_strong(expected, impl_.get(), std::memory_order_acq_rel)) {
+    return another_session_is_active;
+  }
+  impl_->owns_connection = true;
+
+  SERVER_INFORMATION server {};
+  LiInitializeServerInformation(&server);
+  server.address = impl_->server.address.c_str();
+  server.serverInfoAppVersion = impl_->server.app_version.c_str();
+  server.serverInfoGfeVersion = impl_->server.gfe_version.empty() ? nullptr : impl_->server.gfe_version.c_str();
+  server.rtspSessionUrl = impl_->server.rtsp_session_url.empty() ? nullptr : impl_->server.rtsp_session_url.c_str();
+  server.serverCodecModeSupport = impl_->server.codec_mode_support;
+
+  CONNECTION_LISTENER_CALLBACKS listener {};
+  LiInitializeConnectionCallbacks(&listener);
+  listener.stageStarting = Impl::stage_starting;
+  listener.stageComplete = Impl::stage_complete;
+  listener.stageFailed = Impl::stage_failed;
+  listener.connectionStarted = Impl::connection_started;
+  listener.connectionTerminated = Impl::connection_terminated;
+  listener.logMessage = Impl::log_message;
+  listener.connectionStatusUpdate = Impl::connection_status_changed;
+  listener.setHdrMode = Impl::hdr_mode_changed;
+
+  DECODER_RENDERER_CALLBACKS video {};
+  LiInitializeVideoCallbacks(&video);
+  video.setup = Impl::video_setup;
+  video.start = Impl::video_start;
+  video.stop = Impl::video_stop;
+  video.cleanup = Impl::video_cleanup;
+  video.submitDecodeUnit = Impl::video_submit;
+  video.capabilities = native_video_capabilities(impl_->video.capabilities());
+
+  AUDIO_RENDERER_CALLBACKS audio {};
+  LiInitializeAudioCallbacks(&audio);
+  audio.init = Impl::audio_setup;
+  audio.start = Impl::audio_start;
+  audio.stop = Impl::audio_stop;
+  audio.cleanup = Impl::audio_cleanup;
+  audio.decodeAndPlaySample = Impl::audio_submit;
+  audio.capabilities = native_audio_capabilities(impl_->audio.capabilities());
+
+  const auto result = LiStartConnection(
+      &server,
+      static_cast<PSTREAM_CONFIGURATION>(impl_->configuration.native_configuration()),
+      &listener,
+      &video,
+      &audio,
+      nullptr,
+      0,
+      nullptr,
+      0);
+  if (result != 0) {
+    impl_->running.store(false, std::memory_order_release);
+    impl_->owns_connection = false;
+    Impl::owner.store(nullptr, std::memory_order_release);
+  }
+  return result;
+}
+
+void StreamingSession::interrupt() noexcept {
+  if (impl_->owns_connection && Impl::current() == impl_.get()) {
+    LiInterruptConnection();
+  }
+}
+
+void StreamingSession::stop() noexcept {
+  if (!impl_->owns_connection || Impl::current() != impl_.get()) {
+    return;
+  }
+  LiStopConnection();
+  impl_->running.store(false, std::memory_order_release);
+  impl_->owns_connection = false;
+  Impl::owner.store(nullptr, std::memory_order_release);
+}
+
+bool StreamingSession::active() const noexcept {
+  return impl_->running.load(std::memory_order_acquire);
+}
+
+}  // namespace one::protocol

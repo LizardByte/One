@@ -8,9 +8,11 @@ Page {
     id: page
 
     required property bool televisionMode
+    required property var computerModel
+    signal gamesRequested(string hostName)
 
     function beginPairing(row, stableId) {
-        const pin = ComputerModel.pairHost(row)
+        const pin = page.computerModel.pairHost(row)
         if (pin.length === 0) {
             pairingDialog.activeHostId = stableId
             pairingDialog.pending = false
@@ -63,7 +65,7 @@ Page {
         Frame {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: ComputerModel.count === 0
+            visible: page.computerModel.count === 0
 
             ColumnLayout {
                 anchors.centerIn: parent
@@ -89,10 +91,10 @@ Page {
         ListView {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: ComputerModel.count > 0
+            visible: page.computerModel.count > 0
             clip: true
             spacing: page.televisionMode ? 16 : 10
-            model: ComputerModel
+            model: page.computerModel
 
             delegate: Frame {
                 id: hostCard
@@ -140,8 +142,11 @@ Page {
                         enabled: hostCard.online && !hostCard.pairing
                         focusPolicy: Qt.StrongFocus
                         onClicked: {
-                            if (hostCard.paired)
+                            if (hostCard.paired) {
+                                if (page.computerModel.openHost(hostCard.index))
+                                    page.gamesRequested(hostCard.displayName)
                                 return
+                            }
 
                             page.beginPairing(hostCard.index, hostCard.stableId)
                         }
@@ -152,7 +157,7 @@ Page {
     }
 
     Connections {
-        target: ComputerModel
+        target: page.computerModel
 
         function onPairingCompleted(stableId, success, error) {
             if (stableId !== pairingDialog.activeHostId)
@@ -223,7 +228,7 @@ Page {
             hostAddress.forceActiveFocus()
         }
         onAccepted: {
-            if (ComputerModel.addManualHost(hostAddress.text))
+            if (page.computerModel.addManualHost(hostAddress.text))
                 hostAddress.clear()
         }
 

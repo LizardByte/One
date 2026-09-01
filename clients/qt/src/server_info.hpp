@@ -10,8 +10,10 @@ struct ServerInfo {
   QString display_name;
   QString app_version;
   QString gfe_version;
+  QString state;
   quint16 https_port {47984};
   int codec_mode_support {1};
+  int current_game_id {0};
   bool paired {false};
 };
 

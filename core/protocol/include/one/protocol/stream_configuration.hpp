@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -56,6 +57,19 @@ struct StreamSettings {
   bool encrypt_video {true};
 };
 
+struct StreamLaunchParameters {
+  int width {0};
+  int height {0};
+  int frames_per_second {0};
+  int surround_audio_info {0};
+  std::string remote_input_aes_key_hex;
+  std::uint32_t remote_input_aes_key_id {0};
+  bool hdr_requested {false};
+  std::string moonlight_query_parameters;
+};
+
+class StreamingSession;
+
 class StreamConfiguration final {
  public:
   explicit StreamConfiguration(StreamSettings settings = {});
@@ -68,8 +82,13 @@ class StreamConfiguration final {
   StreamConfiguration& operator=(const StreamConfiguration&) = delete;
 
   [[nodiscard]] const StreamSettings& settings() const noexcept;
+  [[nodiscard]] StreamLaunchParameters launch_parameters() const;
 
  private:
+  friend class StreamingSession;
+
+  [[nodiscard]] void* native_configuration() noexcept;
+
   struct Impl;
   std::unique_ptr<Impl> impl_;
 };

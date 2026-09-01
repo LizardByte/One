@@ -26,6 +26,19 @@ int main() {
       one::protocol::moonlight_common_revision == "874ac9548f1bd6f095ef2b435c42cdde460e7821",
       "protocol revision should match the vendored source");
   failures += expect(!one::protocol::launch_url_query_parameters().empty(), "Sunshine launch parameters should be available");
+  const auto default_launch = defaults.launch_parameters();
+  failures += expect(default_launch.width == 1920 && default_launch.height == 1080, "launch dimensions should match the stream");
+  failures += expect(default_launch.remote_input_aes_key_hex.size() == 32, "remote input key should contain 16 bytes");
+  failures += expect(default_launch.surround_audio_info != 0, "launch parameters should contain the audio layout");
+  failures += expect(default_launch.hdr_requested, "10-bit formats should request HDR capability negotiation");
+  failures += expect(
+      default_launch.moonlight_query_parameters.find("corever=") != std::string::npos,
+      "launch parameters should include moonlight-common-c extensions");
+
+  one::protocol::StreamConfiguration second_defaults;
+  failures += expect(
+      second_defaults.launch_parameters().remote_input_aes_key_hex != default_launch.remote_input_aes_key_hex,
+      "each stream should use a fresh remote input key");
 
   auto custom_settings = one::protocol::StreamSettings {};
   custom_settings.width = 3840;
@@ -36,6 +49,9 @@ int main() {
   one::protocol::StreamConfiguration custom(std::move(custom_settings));
   failures += expect(custom.settings().width == 3840, "custom stream width should be retained");
   failures += expect(custom.settings().frames_per_second == 120, "custom frame rate should be retained");
+  failures += expect(
+      custom.launch_parameters().surround_audio_info != default_launch.surround_audio_info,
+      "custom audio layout should be reflected in launch parameters");
 
   try {
     auto invalid_settings = one::protocol::StreamSettings {};
