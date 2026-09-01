@@ -92,6 +92,8 @@ qt_add_executable(one
     src/main.cpp
     src/opus_audio_renderer.cpp
     src/opus_audio_renderer.hpp
+    src/qt_input_mapper.cpp
+    src/qt_input_mapper.hpp
     src/streaming_controller.cpp
     src/streaming_controller.hpp
     src/ui_environment.cpp
@@ -187,6 +189,8 @@ if(ONE_BUILD_TESTS)
         add_executable(one_media_backend_test
             src/opus_audio_renderer.cpp
             src/opus_audio_renderer.hpp
+            src/qt_input_mapper.cpp
+            src/qt_input_mapper.hpp
             src/stream_video_output.cpp
             src/stream_video_output.hpp
             tests/media_backend_test.cpp
@@ -202,6 +206,15 @@ if(ONE_BUILD_TESTS)
         )
         add_test(NAME one.qt.media_backend COMMAND one_media_backend_test)
         set_tests_properties(one.qt.media_backend PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+        add_executable(one_desktop_input_test
+            src/qt_input_mapper.cpp
+            src/qt_input_mapper.hpp
+            tests/desktop_input_test.cpp
+        )
+        target_include_directories(one_desktop_input_test PRIVATE src)
+        target_link_libraries(one_desktop_input_test PRIVATE One::Protocol Qt6::Core)
+        add_test(NAME one.qt.desktop_input COMMAND one_desktop_input_test)
     endif()
 
     foreach(ui_mode IN ITEMS desktop touch television)

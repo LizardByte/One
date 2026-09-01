@@ -23,8 +23,8 @@ One is in its initial bootstrap phase. The repository currently contains:
   application-list browsing in the Qt client.
 - Exact authenticated `/launch`, `/resume`, and `/cancel` request handling plus a renderer-neutral
   `moonlight-common-c` session lifecycle boundary.
-- An initial PC stream path with FFmpeg software video decoding, Opus decoding, and SDL audio output. It currently
-  negotiates H.264 SDR while the hardware-decoder and input backends are still being built.
+- An initial PC stream path with FFmpeg software video decoding, Opus/SDL audio output, and captured keyboard and
+  mouse input. It currently negotiates H.264 SDR while hardware decoding and controller input are still being built.
 - Android TV detection and a tvOS compile-time path.
 - A placeholder boundary for the separate Xbox UWP XAML interface.
 - Recorded upstream revisions for each source client that has not yet been brought behind One-owned interfaces.
@@ -67,8 +67,8 @@ $env:PATH = "C:\msys64\ucrt64\bin;$env:PATH"
 .\build\qt\one.exe
 ```
 
-Open a paired computer, choose an application, and select **Stream**. This first backend displays video and plays
-audio, but it does not send keyboard, mouse, or controller input yet.
+Open a paired computer, choose an application, and select **Stream**. Click the video to capture the keyboard and
+mouse; press **Ctrl+Alt+Shift+Z** to release them. Controller input is not implemented yet.
 
 `ONE_PREFER_STATIC_DEPENDENCIES` defaults to `ON`. One, `moonlight-common-c`, qmdnsengine, OpenSSL, Opus, SDL2, and
 the MinGW runtime are linked statically when the toolchain provides usable static variants. Qt remains dynamic when

@@ -69,6 +69,9 @@ StreamingController::StreamingController(QObject* parent) : QObject(parent) {
 
 StreamingController::~StreamingController() {
   stop_requested_ = true;
+  if (!video_output_.isNull()) {
+    video_output_->setInputSession(nullptr);
+  }
   if (session_ && start_watcher_.isRunning()) {
     session_->interrupt();
     start_watcher_.waitForFinished();
@@ -179,6 +182,9 @@ void StreamingController::stop() {
   }
   if (session_) {
     setState(State::stopping);
+    if (!video_output_.isNull()) {
+      video_output_->setInputSession(nullptr);
+    }
     session_->stop();
   }
   clearSession();
@@ -299,11 +305,17 @@ void StreamingController::handleStartFinished() {
     setError(tr("Unable to start the streaming protocol (error %1).").arg(result));
     return;
   }
+  if (!video_output_.isNull()) {
+    video_output_->setInputSession(session_.get());
+  }
   setStatus(tr("Streaming %1").arg(application_title_));
   setState(State::streaming);
 }
 
 void StreamingController::clearSession() {
+  if (!video_output_.isNull()) {
+    video_output_->setInputSession(nullptr);
+  }
   session_.reset();
   audio_renderer_.reset();
   configuration_.reset();

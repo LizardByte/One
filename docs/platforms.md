@@ -2,7 +2,7 @@
 
 | Target | Required | Interface | Initial bootstrap status |
 | --- | --- | --- | --- |
-| Windows | Yes | Shared Qt Quick | Initial H.264 software video and Opus/SDL audio path added |
+| Windows | Yes | Shared Qt Quick | Initial H.264/Opus stream plus keyboard and mouse input added |
 | Linux | Yes | Shared Qt Quick | Desktop media backend added; runtime validation pending |
 | macOS | Yes | Shared Qt Quick | Desktop media backend added; runtime validation pending |
 | Android mobile/tablet | Yes | Shared Qt Quick | Touch mode added |

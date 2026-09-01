@@ -20,6 +20,31 @@ struct ServerInformation {
   int codec_mode_support {1};
 };
 
+enum class MouseButton {
+  left,
+  middle,
+  right,
+  extra_1,
+  extra_2,
+};
+
+enum class ButtonAction {
+  press,
+  release,
+};
+
+enum class KeyAction {
+  press,
+  release,
+};
+
+struct KeyModifiers {
+  bool shift {false};
+  bool control {false};
+  bool alt {false};
+  bool meta {false};
+};
+
 enum class VideoBufferType {
   picture,
   sequence_parameter_set,
@@ -147,6 +172,8 @@ class StreamingSession final {
  public:
   static constexpr int invalid_server_information = -10'000;
   static constexpr int another_session_is_active = -10'001;
+  static constexpr int input_not_ready = -10'002;
+  static constexpr int invalid_input = -10'003;
 
   StreamingSession(
       ServerInformation server,
@@ -167,6 +194,19 @@ class StreamingSession final {
   void interrupt() noexcept;
   void stop() noexcept;
   [[nodiscard]] bool active() const noexcept;
+
+  // GameStream keyboard packets use Win32 virtual-key values independent of
+  // the client platform. The protocol prefix is added by this boundary.
+  [[nodiscard]] int send_mouse_move(std::int16_t deltaX, std::int16_t deltaY) noexcept;
+  [[nodiscard]] int send_mouse_button(MouseButton button, ButtonAction action) noexcept;
+  [[nodiscard]] int send_vertical_scroll(std::int16_t amount) noexcept;
+  [[nodiscard]] int send_horizontal_scroll(std::int16_t amount) noexcept;
+  [[nodiscard]] int send_key(
+      std::uint16_t virtualKey,
+      KeyAction action,
+      KeyModifiers modifiers,
+      bool normalized = true) noexcept;
+  [[nodiscard]] int send_utf8_text(std::string_view text) noexcept;
 
  private:
   struct Impl;

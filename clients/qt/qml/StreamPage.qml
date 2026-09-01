@@ -38,6 +38,7 @@ Page {
         anchors.right: parent.right
         height: controls.implicitHeight + 24
         color: "#B0000000"
+        visible: !videoOutput.inputCaptured
 
         RowLayout {
             id: controls
@@ -72,6 +73,24 @@ Page {
                 elide: Text.ElideRight
                 Layout.maximumWidth: 420
             }
+        }
+    }
+
+    Rectangle {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 24
+        width: inputHint.implicitWidth + 28
+        height: inputHint.implicitHeight + 18
+        radius: height / 2
+        color: "#C0000000"
+        visible: videoOutput.inputEnabled && !videoOutput.inputCaptured
+
+        Label {
+            id: inputHint
+            anchors.centerIn: parent
+            text: qsTr("Click the stream to capture input · Ctrl+Alt+Shift+Z releases it")
+            color: "white"
         }
     }
 

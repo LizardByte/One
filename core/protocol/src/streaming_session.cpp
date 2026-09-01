@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cstdarg>
 #include <cstdio>
+#include <limits>
 #include <utility>
 
 extern "C" {
@@ -91,6 +92,31 @@ int native_audio_capabilities(const AudioRendererCapabilities& capabilities) noe
   int native = capabilities.direct_submit ? CAPABILITY_DIRECT_SUBMIT : 0;
   native |= capabilities.slow_decoder ? CAPABILITY_SLOW_OPUS_DECODER : 0;
   native |= capabilities.arbitrary_audio_duration ? CAPABILITY_SUPPORTS_ARBITRARY_AUDIO_DURATION : 0;
+  return native;
+}
+
+int native_mouse_button(const MouseButton button) noexcept {
+  switch (button) {
+    case MouseButton::left:
+      return BUTTON_LEFT;
+    case MouseButton::middle:
+      return BUTTON_MIDDLE;
+    case MouseButton::right:
+      return BUTTON_RIGHT;
+    case MouseButton::extra_1:
+      return BUTTON_X1;
+    case MouseButton::extra_2:
+      return BUTTON_X2;
+  }
+  return 0;
+}
+
+char native_key_modifiers(const KeyModifiers modifiers) noexcept {
+  char native = 0;
+  native |= modifiers.shift ? MODIFIER_SHIFT : 0;
+  native |= modifiers.control ? MODIFIER_CTRL : 0;
+  native |= modifiers.alt ? MODIFIER_ALT : 0;
+  native |= modifiers.meta ? MODIFIER_META : 0;
   return native;
 }
 
@@ -448,6 +474,60 @@ void StreamingSession::stop() noexcept {
 
 bool StreamingSession::active() const noexcept {
   return impl_->running.load(std::memory_order_acquire);
+}
+
+int StreamingSession::send_mouse_move(const std::int16_t delta_x, const std::int16_t delta_y) noexcept {
+  return active() ? LiSendMouseMoveEvent(delta_x, delta_y) : input_not_ready;
+}
+
+int StreamingSession::send_mouse_button(const MouseButton button, const ButtonAction action) noexcept {
+  if (!active()) {
+    return input_not_ready;
+  }
+  const auto native_button = native_mouse_button(button);
+  if (native_button == 0) {
+    return invalid_input;
+  }
+  return LiSendMouseButtonEvent(
+      action == ButtonAction::press ? BUTTON_ACTION_PRESS : BUTTON_ACTION_RELEASE,
+      native_button);
+}
+
+int StreamingSession::send_vertical_scroll(const std::int16_t amount) noexcept {
+  return active() ? LiSendHighResScrollEvent(amount) : input_not_ready;
+}
+
+int StreamingSession::send_horizontal_scroll(const std::int16_t amount) noexcept {
+  return active() ? LiSendHighResHScrollEvent(amount) : input_not_ready;
+}
+
+int StreamingSession::send_key(
+    const std::uint16_t virtual_key,
+    const KeyAction action,
+    const KeyModifiers modifiers,
+    const bool normalized) noexcept {
+  if (!active()) {
+    return input_not_ready;
+  }
+  if (virtual_key == 0 || virtual_key > 0xFFU) {
+    return invalid_input;
+  }
+  const auto protocol_key = static_cast<short>(0x8000U | virtual_key);
+  return LiSendKeyboardEvent2(
+      protocol_key,
+      action == KeyAction::press ? KEY_ACTION_DOWN : KEY_ACTION_UP,
+      native_key_modifiers(modifiers),
+      normalized ? 0 : SS_KBE_FLAG_NON_NORMALIZED);
+}
+
+int StreamingSession::send_utf8_text(const std::string_view text) noexcept {
+  if (!active()) {
+    return input_not_ready;
+  }
+  if (text.empty() || text.size() > std::numeric_limits<unsigned int>::max()) {
+    return invalid_input;
+  }
+  return LiSendUtf8TextEvent(text.data(), static_cast<unsigned int>(text.size()));
 }
 
 }  // namespace one::protocol

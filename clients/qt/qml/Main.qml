@@ -72,7 +72,7 @@ ApplicationWindow {
 
         AppNavigation {
             Layout.fillWidth: true
-            visible: root.televisionMode
+            visible: root.televisionMode && !StreamingController.busy
             vertical: false
             currentIndex: root.currentPage
             onActivated: index => root.currentPage = index
@@ -86,7 +86,7 @@ ApplicationWindow {
             AppNavigation {
                 Layout.fillHeight: true
                 Layout.preferredWidth: 210
-                visible: root.desktopMode
+                visible: root.desktopMode && !StreamingController.busy
                 vertical: true
                 currentIndex: root.currentPage
                 onActivated: index => root.currentPage = index
@@ -122,7 +122,7 @@ ApplicationWindow {
 
         AppNavigation {
             Layout.fillWidth: true
-            visible: root.touchMode
+            visible: root.touchMode && !StreamingController.busy
             vertical: false
             currentIndex: root.currentPage
             onActivated: index => root.currentPage = index
