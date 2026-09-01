@@ -1,6 +1,35 @@
-qt_add_executable(one
+set(BUILD_DOC OFF CACHE BOOL "Do not build qmdnsengine documentation" FORCE)
+set(BUILD_EXAMPLES OFF CACHE BOOL "Do not build qmdnsengine examples" FORCE)
+set(BUILD_TESTS OFF CACHE BOOL "Do not build qmdnsengine's tests" FORCE)
+add_subdirectory(vendor/qmdnsengine qmdnsengine EXCLUDE_FROM_ALL)
+find_package(OpenSSL 1.1 REQUIRED COMPONENTS Crypto)
+
+add_library(one_qt_client STATIC
+    src/client_identity.cpp
+    src/client_identity.hpp
+    src/host_discovery_service.cpp
+    src/host_discovery_service.hpp
     src/host_list_model.cpp
     src/host_list_model.hpp
+    src/pairing_client.cpp
+    src/pairing_client.hpp
+    src/server_info.cpp
+    src/server_info.hpp
+    src/server_info_client.cpp
+    src/server_info_client.hpp
+)
+add_library(One::QtClient ALIAS one_qt_client)
+
+target_include_directories(one_qt_client PUBLIC src)
+target_link_libraries(one_qt_client
+    PUBLIC One::Core Qt6::Concurrent Qt6::Core Qt6::Network
+    PRIVATE OpenSSL::Crypto qmdnsengine
+)
+if(WIN32 AND ONE_PREFER_STATIC_DEPENDENCIES)
+    target_link_libraries(one_qt_client PRIVATE ws2_32 gdi32 crypt32)
+endif()
+
+qt_add_executable(one
     src/main.cpp
     src/ui_environment.cpp
     src/ui_environment.hpp
@@ -12,6 +41,7 @@ target_link_libraries(one
     PRIVATE
         One::Core
         One::Protocol
+        One::QtClient
         Qt6::Core
         Qt6::Gui
         Qt6::Qml
@@ -37,13 +67,22 @@ set_target_properties(one PROPERTIES
 
 if(ONE_BUILD_TESTS)
     add_executable(one_qt_host_list_model_test
-        src/host_list_model.cpp
-        src/host_list_model.hpp
         tests/host_list_model_test.cpp
     )
-    target_include_directories(one_qt_host_list_model_test PRIVATE src)
-    target_link_libraries(one_qt_host_list_model_test PRIVATE One::Core Qt6::Core)
+    target_link_libraries(one_qt_host_list_model_test PRIVATE One::QtClient)
     add_test(NAME one.qt.host_list_model COMMAND one_qt_host_list_model_test)
+
+    add_executable(one_server_info_test
+        tests/server_info_test.cpp
+    )
+    target_link_libraries(one_server_info_test PRIVATE One::QtClient)
+    add_test(NAME one.qt.server_info COMMAND one_server_info_test)
+
+    add_executable(one_pairing_client_test
+        tests/pairing_client_test.cpp
+    )
+    target_link_libraries(one_pairing_client_test PRIVATE One::QtClient)
+    add_test(NAME one.qt.pairing_client COMMAND one_pairing_client_test)
 
     foreach(ui_mode IN ITEMS desktop touch television)
         add_test(

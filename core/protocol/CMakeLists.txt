@@ -14,6 +14,10 @@ endif()
 
 add_subdirectory("${ONE_MOONLIGHT_COMMON_DIR}" moonlight-common-c EXCLUDE_FROM_ALL)
 
+if(WIN32 AND ONE_PREFER_STATIC_DEPENDENCIES AND NOT ONE_PROTOCOL_USE_MBEDTLS)
+    target_link_libraries(moonlight-common-c PRIVATE ws2_32 gdi32 crypt32)
+endif()
+
 add_library(one_protocol STATIC
     src/stream_configuration.cpp
 )

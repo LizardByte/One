@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -38,6 +39,7 @@ struct HostUpdate {
   HostEndpoint endpoint;
   HostOrigin origin {HostOrigin::discovered};
   HostReachability reachability {HostReachability::unknown};
+  std::optional<HostPairingState> pairing;
 };
 
 struct Host {

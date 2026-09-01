@@ -18,7 +18,7 @@ int expect(const bool condition, const char* message) {
 
 int main(int argc, char* argv[]) {
   QCoreApplication application(argc, argv);
-  HostListModel model;
+  HostListModel model(nullptr, false);
   int failures = 0;
 
   failures += expect(model.rowCount() == 0, "host list should begin empty");

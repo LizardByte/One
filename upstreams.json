@@ -26,6 +26,14 @@
       ]
     },
     {
+      "name": "qmdnsengine",
+      "url": "https://github.com/cgutman/qmdnsengine.git",
+      "branch": "master",
+      "revision": "920c097ffa742e2968290f15d4dde6693aec02e5",
+      "destination": "clients/qt/vendor/qmdnsengine",
+      "integration": "git-submodule"
+    },
+    {
       "name": "moonlight-qt",
       "url": "https://github.com/moonlight-stream/moonlight-qt.git",
       "branch": "master",

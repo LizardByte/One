@@ -14,8 +14,10 @@ and input APIs into a lowest-common-denominator abstraction.
 The core must not expose Qt, JNI, Foundation, or WinRT types. Boundaries use portable C++ internally and a narrow C
 ABI where a platform language requires one.
 
-Discovery and pairing do not belong to `moonlight-common-c`. Platform discovery adapters feed a shared `HostCatalog`,
-while the shared pairing state machine is independent of the eventual HTTP, certificate, and secure-storage adapters.
+Discovery and pairing do not belong to `moonlight-common-c`. Platform discovery adapters feed a shared `HostCatalog`.
+The Qt client uses qmdnsengine for `_nvstream._tcp` discovery and owns its GameStream HTTP, certificate, and pairing
+exchange. Client identity and pinned host certificates are persistent; platform secure-storage adapters remain a
+later hardening step.
 
 ## Shared interface
 

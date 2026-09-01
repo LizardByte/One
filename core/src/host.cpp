@@ -30,7 +30,7 @@ std::size_t HostCatalog::merge(HostUpdate update) {
         .display_name = update.display_name.empty() ? update.endpoint.address : std::move(update.display_name),
         .endpoint = std::move(update.endpoint),
         .reachability = update.reachability,
-        .pairing = HostPairingState::unpaired,
+        .pairing = update.pairing.value_or(HostPairingState::unpaired),
         .manually_added = update.origin == HostOrigin::manual,
     });
     return hosts_.size() - 1;
@@ -45,6 +45,9 @@ std::size_t HostCatalog::merge(HostUpdate update) {
   }
   host.endpoint = std::move(update.endpoint);
   host.reachability = update.reachability;
+  if (update.pairing.has_value()) {
+    host.pairing = *update.pairing;
+  }
   host.manually_added = host.manually_added || update.origin == HostOrigin::manual;
   return index;
 }
