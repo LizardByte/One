@@ -105,6 +105,34 @@ struct ControllerState {
   std::int16_t right_stick_y {0};
 };
 
+enum class ControllerTouchAction {
+  down,
+  up,
+  move,
+  cancel,
+};
+
+enum class ControllerMotionType {
+  accelerometer,
+  gyroscope,
+};
+
+enum class ControllerBatteryState {
+  unknown,
+  not_present,
+  discharging,
+  charging,
+  not_charging,
+  full,
+};
+
+struct ControllerBattery {
+  static constexpr std::uint8_t unknown_percentage = 0xFF;
+
+  ControllerBatteryState state {ControllerBatteryState::unknown};
+  std::uint8_t percentage {unknown_percentage};
+};
+
 enum class VideoBufferType {
   picture,
   sequence_parameter_set,
@@ -225,6 +253,10 @@ class ConnectionListener {
   virtual void hdr_mode_changed(bool) noexcept {}
   virtual void controller_rumble(std::uint16_t, std::uint16_t, std::uint16_t) noexcept {}
   virtual void controller_trigger_rumble(std::uint16_t, std::uint16_t, std::uint16_t) noexcept {}
+  virtual void controller_motion_state(
+      std::uint16_t,
+      ControllerMotionType,
+      std::uint16_t) noexcept {}
 };
 
 // moonlight-common-c currently owns process-global connection state, so only one
@@ -282,6 +314,23 @@ class StreamingSession final {
   [[nodiscard]] int send_controller_departure(
       std::uint8_t controllerNumber,
       std::uint16_t activeControllerMask) noexcept;
+  [[nodiscard]] int send_controller_touch(
+      std::uint8_t controllerNumber,
+      std::uint8_t touchpadIndex,
+      std::uint32_t pointerId,
+      ControllerTouchAction action,
+      float x,
+      float y,
+      float pressure) noexcept;
+  [[nodiscard]] int send_controller_motion(
+      std::uint8_t controllerNumber,
+      ControllerMotionType type,
+      float x,
+      float y,
+      float z) noexcept;
+  [[nodiscard]] int send_controller_battery(
+      std::uint8_t controllerNumber,
+      ControllerBattery battery) noexcept;
 
  private:
   struct Impl;

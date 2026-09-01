@@ -93,6 +93,10 @@ class StreamingController final : public QObject, public one::protocol::Connecti
       std::uint16_t controllerNumber,
       std::uint16_t leftTriggerMotor,
       std::uint16_t rightTriggerMotor) noexcept override;
+  void controller_motion_state(
+      std::uint16_t controllerNumber,
+      one::protocol::ControllerMotionType type,
+      std::uint16_t reportRateHz) noexcept override;
 
   std::unique_ptr<ClientIdentity> identity_;
   std::unique_ptr<DesktopGamepadManager> gamepad_manager_;

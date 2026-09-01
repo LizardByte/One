@@ -30,6 +30,7 @@ int main(int argc, char* argv[]) {
   }
   manager.rumble(16, 1, 1);
   manager.rumbleTriggers(16, 1, 1);
+  manager.setMotionReporting(16, one::protocol::ControllerMotionType::accelerometer, 100);
 
   using one::protocol::ControllerButton;
   if (!expect_button(SDL_GAMEPAD_BUTTON_SOUTH, ControllerButton::a) ||

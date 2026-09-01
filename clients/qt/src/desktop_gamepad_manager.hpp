@@ -26,6 +26,10 @@ class DesktopGamepadManager final : public QObject {
       std::uint16_t controllerNumber,
       std::uint16_t leftTriggerMotor,
       std::uint16_t rightTriggerMotor) noexcept;
+  void setMotionReporting(
+      std::uint16_t controllerNumber,
+      one::protocol::ControllerMotionType type,
+      std::uint16_t reportRateHz) noexcept;
 
  signals:
   void controllerCountChanged();

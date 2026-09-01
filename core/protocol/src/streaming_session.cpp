@@ -1,6 +1,7 @@
 #include "one/protocol/streaming_session.hpp"
 
 #include <atomic>
+#include <cmath>
 #include <cstdarg>
 #include <cstdio>
 #include <limits>
@@ -179,6 +180,48 @@ int native_controller_capabilities(const ControllerCapabilities capabilities) no
   return native;
 }
 
+int native_controller_touch_action(const ControllerTouchAction action) noexcept {
+  switch (action) {
+    case ControllerTouchAction::down:
+      return LI_TOUCH_EVENT_DOWN;
+    case ControllerTouchAction::up:
+      return LI_TOUCH_EVENT_UP;
+    case ControllerTouchAction::move:
+      return LI_TOUCH_EVENT_MOVE;
+    case ControllerTouchAction::cancel:
+      return LI_TOUCH_EVENT_CANCEL;
+  }
+  return LI_TOUCH_EVENT_CANCEL;
+}
+
+int native_controller_motion_type(const ControllerMotionType type) noexcept {
+  switch (type) {
+    case ControllerMotionType::accelerometer:
+      return LI_MOTION_TYPE_ACCEL;
+    case ControllerMotionType::gyroscope:
+      return LI_MOTION_TYPE_GYRO;
+  }
+  return LI_MOTION_TYPE_ACCEL;
+}
+
+int native_controller_battery_state(const ControllerBatteryState state) noexcept {
+  switch (state) {
+    case ControllerBatteryState::unknown:
+      return LI_BATTERY_STATE_UNKNOWN;
+    case ControllerBatteryState::not_present:
+      return LI_BATTERY_STATE_NOT_PRESENT;
+    case ControllerBatteryState::discharging:
+      return LI_BATTERY_STATE_DISCHARGING;
+    case ControllerBatteryState::charging:
+      return LI_BATTERY_STATE_CHARGING;
+    case ControllerBatteryState::not_charging:
+      return LI_BATTERY_STATE_NOT_CHARGING;
+    case ControllerBatteryState::full:
+      return LI_BATTERY_STATE_FULL;
+  }
+  return LI_BATTERY_STATE_UNKNOWN;
+}
+
 std::string_view stage_name(const int stage) noexcept {
   const auto* name = LiGetStageName(stage);
   return name == nullptr ? std::string_view {} : std::string_view {name};
@@ -346,6 +389,28 @@ struct StreamingSession::Impl {
     }
   }
 
+  static void controller_motion_state(
+      const std::uint16_t controller_number,
+      const std::uint8_t motion_type,
+      const std::uint16_t report_rate_hz) {
+    auto* session = current();
+    if (session == nullptr) {
+      return;
+    }
+    switch (motion_type) {
+      case LI_MOTION_TYPE_ACCEL:
+        session->listener.controller_motion_state(
+            controller_number, ControllerMotionType::accelerometer, report_rate_hz);
+        break;
+      case LI_MOTION_TYPE_GYRO:
+        session->listener.controller_motion_state(
+            controller_number, ControllerMotionType::gyroscope, report_rate_hz);
+        break;
+      default:
+        break;
+    }
+  }
+
   static int video_setup(
       const int format,
       const int width,
@@ -500,6 +565,7 @@ int StreamingSession::start() {
   listener.setHdrMode = Impl::hdr_mode_changed;
   listener.rumble = Impl::controller_rumble;
   listener.rumbleTriggers = Impl::controller_trigger_rumble;
+  listener.setMotionEventState = Impl::controller_motion_state;
 
   DECODER_RENDERER_CALLBACKS video {};
   LiInitializeVideoCallbacks(&video);
@@ -663,6 +729,71 @@ int StreamingSession::send_controller_departure(
     return invalid_input;
   }
   return LiSendMultiControllerEvent(controller_number, active_controller_mask, 0, 0, 0, 0, 0, 0, 0);
+}
+
+int StreamingSession::send_controller_touch(
+    const std::uint8_t controller_number,
+    const std::uint8_t touchpad_index,
+    const std::uint32_t pointer_id,
+    const ControllerTouchAction action,
+    const float x,
+    const float y,
+    const float pressure) noexcept {
+  if (!active()) {
+    return input_not_ready;
+  }
+  if (controller_number >= 16 || touchpad_index >= 2) {
+    return invalid_input;
+  }
+  if (action != ControllerTouchAction::cancel &&
+      (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(pressure) || x < 0.0F ||
+       x > 1.0F || y < 0.0F || y > 1.0F || pressure < 0.0F || pressure > 1.0F)) {
+    return invalid_input;
+  }
+  return LiSendControllerTouchEvent2(
+      controller_number,
+      static_cast<std::uint8_t>(native_controller_touch_action(action)),
+      touchpad_index,
+      pointer_id,
+      x,
+      y,
+      pressure);
+}
+
+int StreamingSession::send_controller_motion(
+    const std::uint8_t controller_number,
+    const ControllerMotionType type,
+    const float x,
+    const float y,
+    const float z) noexcept {
+  if (!active()) {
+    return input_not_ready;
+  }
+  if (controller_number >= 16 || !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) {
+    return invalid_input;
+  }
+  return LiSendControllerMotionEvent(
+      controller_number,
+      static_cast<std::uint8_t>(native_controller_motion_type(type)),
+      x,
+      y,
+      z);
+}
+
+int StreamingSession::send_controller_battery(
+    const std::uint8_t controller_number,
+    const ControllerBattery battery) noexcept {
+  if (!active()) {
+    return input_not_ready;
+  }
+  if (controller_number >= 16 ||
+      (battery.percentage > 100 && battery.percentage != ControllerBattery::unknown_percentage)) {
+    return invalid_input;
+  }
+  return LiSendControllerBatteryEvent(
+      controller_number,
+      static_cast<std::uint8_t>(native_controller_battery_state(battery.state)),
+      battery.percentage);
 }
 
 }  // namespace one::protocol

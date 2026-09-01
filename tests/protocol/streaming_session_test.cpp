@@ -49,7 +49,15 @@ int main() {
       session.send_controller_arrival(0, 1, one::protocol::ControllerType::xbox, 0, {}) !=
           one::protocol::StreamingSession::input_not_ready ||
       session.send_controller_state(0, 1, {}) != one::protocol::StreamingSession::input_not_ready ||
-      session.send_controller_departure(0, 0) != one::protocol::StreamingSession::input_not_ready) {
+      session.send_controller_departure(0, 0) != one::protocol::StreamingSession::input_not_ready ||
+      session.send_controller_touch(
+          0, 0, 0, one::protocol::ControllerTouchAction::down, 0.5F, 0.5F, 1.0F) !=
+          one::protocol::StreamingSession::input_not_ready ||
+      session.send_controller_motion(
+          0, one::protocol::ControllerMotionType::accelerometer, 0.0F, 0.0F, 9.8F) !=
+          one::protocol::StreamingSession::input_not_ready ||
+      session.send_controller_battery(0, {}) !=
+          one::protocol::StreamingSession::input_not_ready) {
     std::cerr << "input should be rejected while the connection is inactive\n";
     return 1;
   }

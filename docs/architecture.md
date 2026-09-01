@@ -48,6 +48,9 @@ active-controller mask in launch requests, and reports hot-plug arrival/departur
 capabilities that the adapter actually implements.
 Host-driven standard and trigger-rumble callbacks cross the protocol boundary and are queued onto the Qt thread before
 calling SDL3. Session teardown sends zero-intensity effects so motors cannot remain active after streaming stops.
+Touch contacts and battery changes are reported from SDL3 while the session is active. Accelerometer and gyro sensors
+remain disabled until the host requests a reporting rate; gyro values are converted from SDL radians per second to the
+protocol's degrees per second. Teardown cancels active touches and disables both sensors.
 
 Sunshine's FFmpeg package is encoder-focused and is not a client dependency. One's eventual bundled FFmpeg build
 must be decoder-only and contain the codecs needed by the negotiated client formats.

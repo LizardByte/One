@@ -443,3 +443,17 @@ void StreamingController::controller_trigger_rumble(
       },
       Qt::QueuedConnection);
 }
+
+void StreamingController::controller_motion_state(
+    const std::uint16_t controller_number,
+    const one::protocol::ControllerMotionType type,
+    const std::uint16_t report_rate_hz) noexcept {
+  QMetaObject::invokeMethod(
+      this,
+      [this, controller_number, type, report_rate_hz]() {
+        if (session_ && session_->active()) {
+          gamepad_manager_->setMotionReporting(controller_number, type, report_rate_hz);
+        }
+      },
+      Qt::QueuedConnection);
+}
