@@ -175,6 +175,8 @@ set(ONE_QML_FILES
         qml/StatusBadge.qml
         qml/OneDialog.qml
         qml/HostArtwork.qml
+        qml/HostAvatar.qml
+        qml/HostBackdrop.qml
         qml/PosterArtwork.qml
 )
 

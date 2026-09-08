@@ -12,14 +12,19 @@ ApplicationWindow {
     readonly property bool touchMode: UiEnvironment.mode === "touch"
     readonly property bool televisionMode: UiEnvironment.mode === "television"
     property int currentPage: 0
+    // Navigation responds to the screen, never to the page being displayed.
     readonly property bool sidebarVisible: desktopMode && width >= 900
     function focusPage() {
         const page = currentPage === 0 ? computersStack.currentItem : currentPage === 1 ? settingsPage : aboutPage;
         page.focusPrimaryAction();
     }
     function focusNavigation() {
-        const navigation = televisionMode ? televisionNavigation : sidebarVisible ? desktopNavigation : touchNavigation;
+        const navigation = sidebarVisible ? desktopNavigation : televisionMode ? televisionNavigation : touchNavigation;
         navigation.focusCurrentItem();
+    }
+    function selectPage(index) {
+        currentPage = index;
+        Qt.callLater(root.focusNavigation);
     }
 
     width: televisionMode ? 1280 : (touchMode ? 430 : 1200)
@@ -74,7 +79,7 @@ ApplicationWindow {
 
     header: ToolBar {
         visible: !root.sidebarVisible && !StreamingController.busy
-        implicitHeight: root.televisionMode ? 76 : 60
+        implicitHeight: root.televisionMode ? 80 : 60
         background: Rectangle {
             color: Theme.sidebar
         }
@@ -99,7 +104,7 @@ ApplicationWindow {
                 visible: root.televisionMode
                 Layout.preferredWidth: 650
                 currentIndex: root.currentPage
-                onActivated: index => root.currentPage = index
+                onActivated: index => root.selectPage(index)
             }
 
             Item {
@@ -126,7 +131,7 @@ ApplicationWindow {
                 visible: root.sidebarVisible && !StreamingController.busy
                 vertical: true
                 currentIndex: root.currentPage
-                onActivated: index => root.currentPage = index
+                onActivated: index => root.selectPage(index)
             }
 
             StackLayout {
@@ -206,7 +211,7 @@ ApplicationWindow {
             visible: !root.sidebarVisible && !root.televisionMode && !StreamingController.busy
             vertical: false
             currentIndex: root.currentPage
-            onActivated: index => root.currentPage = index
+            onActivated: index => root.selectPage(index)
         }
     }
 }

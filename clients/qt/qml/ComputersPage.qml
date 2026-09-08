@@ -10,16 +10,22 @@ Page {
     required property var computerModel
     signal gamesRequested(string hostName, string hostEndpoint)
     signal navigationRequested
-    function focusPrimaryAction() {
-        addComputerButton.forceActiveFocus();
-    }
     readonly property bool compact: width < 600
-    readonly property bool shortWindow: height < 560
-    padding: televisionMode ? 36 : 28
-    background: Rectangle {
-        color: Theme.background
-    }
+    readonly property bool shortWindow: height < 500
+    readonly property bool dense: height < (televisionMode ? 680 : 600)
+    readonly property int avatarSize: shortWindow ? 124 : compact ? 156 : televisionMode ? (dense ? 168 : 216) : 192
+    readonly property int carouselControlWidth: Theme.controlHeight + 16
+    readonly property var selectedHost: hostList.currentItem
+    padding: dense ? 16 : 24
+    background: HostBackdrop {}
+    StackView.onActivated: Qt.callLater(page.focusPrimaryAction)
 
+    function focusPrimaryAction() {
+        if (computerModel.count > 0)
+            hostList.focusHost(Math.max(0, hostList.currentIndex));
+        else
+            addComputerButton.forceActiveFocus();
+    }
     function beginPairing(row, stableId, endpoint) {
         const pin = page.computerModel.pairHost(row);
         pairingDialog.activeHostId = stableId;
@@ -29,133 +35,111 @@ Page {
         pairingDialog.resultText = pin.length > 0 ? "" : qsTr("Unable to start pairing for this computer.");
         pairingDialog.open();
     }
+    function activateHost(host) {
+        if (!host || !host.online || host.pairing)
+            return;
+        if (host.paired) {
+            if (page.computerModel.openHost(host.index))
+                page.gamesRequested(host.displayName, host.endpoint);
+        } else {
+            page.beginPairing(host.index, host.stableId, host.endpoint);
+        }
+    }
 
     ColumnLayout {
         anchors.fill: parent
-        spacing: page.shortWindow ? 16 : page.compact ? 20 : 28
-        GridLayout {
-            columns: page.compact ? 1 : 2
-            Layout.fillWidth: true
-            rowSpacing: 18
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 8
-                Label {
-                    Layout.fillWidth: true
-                    text: qsTr("Computers")
-                    font.pixelSize: Theme.titleSize
-                    font.weight: Font.DemiBold
-                    font.letterSpacing: 0
-                }
-                Label {
-                    Layout.fillWidth: true
-                    text: qsTr("Sunshine instances on your network")
-                    visible: !page.shortWindow
-                    color: Theme.muted
-                    wrapMode: Text.WordWrap
-                }
-            }
-            OneButton {
-                id: addComputerButton
-                objectName: "addComputerButton"
-                text: qsTr("Add computer")
-                symbol: "plus"
-                primary: true
-                focus: true
-                onClicked: addComputerDialog.open()
-                Keys.onUpPressed: page.navigationRequested()
-                Keys.onLeftPressed: page.navigationRequested()
-                Keys.onDownPressed: hostGrid.focusAction(0)
-            }
-        }
-
-        Surface {
-            Layout.fillWidth: true
+        spacing: page.shortWindow ? 8 : page.dense ? 10 : 18
+        Item {
             Layout.fillHeight: true
-            visible: page.computerModel.count === 0
-            ScrollView {
-                id: emptyScroll
-                implicitWidth: 0
-                implicitHeight: 0
-                anchors.fill: parent
-                contentWidth: availableWidth
-                contentHeight: Math.max(availableHeight, emptyContent.implicitHeight)
-                clip: true
-                ColumnLayout {
-                    id: emptyContent
-                    x: (emptyScroll.availableWidth - width) / 2
-                    y: Math.max(0, (emptyScroll.availableHeight - implicitHeight) / 2)
-                    width: Math.min(emptyScroll.availableWidth, 440)
-                    spacing: page.shortWindow ? 10 : 14
-                    Label {
-                        Layout.fillWidth: true
-                        text: qsTr("No computers found")
-                        font.pixelSize: page.televisionMode ? 28 : 22
-                        font.weight: Font.DemiBold
-                        horizontalAlignment: Text.AlignHCenter
-                        wrapMode: Text.WordWrap
-                    }
-                    Label {
-                        Layout.fillWidth: true
-                        text: qsTr("Open Sunshine on your computer. Hosts on your local network appear here automatically.")
-                        horizontalAlignment: Text.AlignHCenter
-                        wrapMode: Text.WordWrap
-                        color: Theme.muted
-                        lineHeight: page.shortWindow ? 1.15 : 1.3
-                    }
-                    OneButton {
-                        Layout.alignment: Qt.AlignHCenter
-                        Layout.topMargin: 4
-                        text: qsTr("Add a computer manually")
-                        symbol: "plus"
-                        onClicked: addComputerDialog.open()
-                    }
-                }
-            }
+            Layout.maximumHeight: page.dense ? 0 : 60
         }
-
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.fillHeight: true
-            visible: page.computerModel.count > 0
-            spacing: 16
-            RowLayout {
+            spacing: 8
+            Label {
                 Layout.fillWidth: true
-                Label {
-                    text: qsTr("Instances")
-                    color: Theme.muted
-                    font.pixelSize: Theme.television ? 14 : 11
-                    font.letterSpacing: 0
-                }
-                Label {
-                    text: page.computerModel.count
-                    color: Theme.muted
-                    font.pixelSize: Theme.television ? 14 : 12
-                }
-                Item {
-                    Layout.fillWidth: true
-                }
-                OneButton {
-                    objectName: "refreshComputers"
-                    text: qsTr("Refresh")
-                    symbol: "refresh"
-                    quiet: true
-                    onClicked: page.computerModel.refresh()
-                }
+                text: page.computerModel.count > 0 ? qsTr("Choose a computer") : qsTr("No computers yet")
+                horizontalAlignment: Text.AlignHCenter
+                font.pixelSize: page.shortWindow ? 26 : page.compact ? 28 : 36
+                font.weight: Font.DemiBold
             }
-            GridView {
-                id: hostGrid
-                objectName: "hostGrid"
+            Label {
                 Layout.fillWidth: true
-                Layout.fillHeight: true
+                text: page.computerModel.count === 1 ? qsTr("1 saved computer") : page.computerModel.count > 0 ? qsTr("%1 saved computers").arg(page.computerModel.count) : qsTr("Open Sunshine to discover a computer, or add one below.")
+                horizontalAlignment: Text.AlignHCenter
+                color: Theme.muted
+                font.pixelSize: page.televisionMode ? 18 : 13
+                wrapMode: Text.WordWrap
+            }
+        }
+
+        RowLayout {
+            Layout.alignment: Qt.AlignHCenter
+            spacing: page.compact ? 4 : 12
+            visible: page.computerModel.count > 0
+            OneButton {
+                objectName: "previousHost"
+                Layout.preferredWidth: page.carouselControlWidth
+                Layout.alignment: Qt.AlignTop
+                Layout.topMargin: (page.avatarSize - Theme.controlHeight) / 2
+                visible: hostList.overflow
+                enabled: hostList.currentIndex > 0
+                symbol: "back"
+                quiet: true
+                Accessible.name: qsTr("Previous computer")
+                onClicked: hostList.focusHost(hostList.currentIndex - 1)
+            }
+            ListView {
+                id: hostList
+                objectName: "hostGrid"
+                readonly property int tileWidth: page.avatarSize + (page.compact ? 32 : 52)
+                readonly property bool overflow: page.computerModel.count * tileWidth > page.availableWidth
+                Layout.preferredWidth: page.compact && overflow ? tileWidth : Math.max(1, Math.min(page.availableWidth - (overflow ? 2 * (page.carouselControlWidth + 12) : 0), page.computerModel.count * tileWidth))
+                Layout.preferredHeight: page.avatarSize + (page.televisionMode ? 100 : 86)
+                orientation: ListView.Horizontal
                 clip: true
-                readonly property int columns: Math.max(1, Math.floor((width + 16) / (page.televisionMode ? 340 : 280)))
-                cellWidth: width / columns
-                cellHeight: Math.min(page.televisionMode ? 354 : 328, height)
                 model: page.computerModel
-                ScrollBar.vertical: ScrollBar {}
-                delegate: Surface {
-                    id: hostCard
+                currentIndex: 0
+                highlightFollowsCurrentItem: false
+                snapMode: ListView.SnapToItem
+                boundsBehavior: Flickable.StopAtBounds
+                onMovementEnded: {
+                    const row = indexAt(contentX + width / 2, height / 2);
+                    if (row >= 0)
+                        currentIndex = row;
+                    keepSelectionVisible();
+                }
+                header: Item {
+                    width: hostList.overflow ? Math.max(0, (hostList.width - hostList.tileWidth) / 2) : 0
+                    height: 1
+                }
+                footer: Item {
+                    width: hostList.overflow ? Math.max(0, (hostList.width - hostList.tileWidth) / 2) : 0
+                    height: 1
+                }
+                onWidthChanged: Qt.callLater(keepSelectionVisible)
+                onCountChanged: {
+                    if (count > 0 && (currentIndex < 0 || currentIndex >= count))
+                        currentIndex = 0;
+                    Qt.callLater(keepSelectionVisible);
+                }
+                function keepSelectionVisible() {
+                    if (currentIndex >= 0 && currentIndex < count)
+                        positionViewAtIndex(currentIndex, overflow ? ListView.Center : ListView.Contain);
+                }
+                function focusHost(row) {
+                    if (row < 0 || row >= count)
+                        return;
+                    currentIndex = row;
+                    keepSelectionVisible();
+                    Qt.callLater(function () {
+                        const host = hostList.itemAtIndex(row);
+                        if (host)
+                            host.forceActiveFocus();
+                    });
+                }
+                delegate: Button {
+                    id: host
                     required property int index
                     required property string displayName
                     required property string stableId
@@ -166,119 +150,159 @@ Page {
                     required property bool pairing
                     required property string status
                     readonly property string endpoint: (address.indexOf(":") >= 0 ? "[" + address + "]" : address) + ":" + port
-                    width: hostGrid.cellWidth - (hostGrid.columns > 1 ? 14 : 0)
-                    height: hostGrid.cellHeight - 16
-                    padding: page.televisionMode ? 24 : 20
-                    background: Rectangle {
-                        radius: Theme.radius
-                        color: Theme.surface
-                        border.color: hostAction.activeFocus ? Theme.accent : Theme.border
-                        border.width: hostAction.activeFocus ? 2 : 1
+                    readonly property string statusText: pairing ? qsTr("Pairing…") : online ? paired ? qsTr("Online") : qsTr("Unpaired") : status
+                    objectName: "hostAction" + index
+                    width: hostList.tileWidth
+                    height: hostList.height
+                    padding: 0
+                    focusPolicy: Qt.StrongFocus
+                    hoverEnabled: true
+                    text: displayName
+                    Accessible.name: displayName + ", " + statusText + ", " + endpoint
+                    Accessible.description: online ? paired ? qsTr("Open game library") : qsTr("Pair with this computer") : qsTr("Computer is offline. It remains saved.")
+                    onClicked: {
+                        hostList.currentIndex = index;
+                        page.activateHost(host);
                     }
-                    ColumnLayout {
-                        anchors.fill: parent
-                        spacing: 9
-                        RowLayout {
-                            Layout.fillWidth: true
-                            StatusBadge {
-                                text: hostCard.pairing ? qsTr("Pairing…") : hostCard.online ? (hostCard.paired ? qsTr("Online") : qsTr("Unpaired")) : hostCard.status
-                                tone: hostCard.online ? (hostCard.paired ? Theme.accent : Theme.warning) : Theme.muted
-                            }
-                            Item {
-                                Layout.fillWidth: true
-                            }
-                            OneIcon {
-                                name: "check"
-                                color: Theme.accent
-                                visible: hostCard.paired
-                                Accessible.name: qsTr("Paired")
-                            }
+                    onActiveFocusChanged: {
+                        if (activeFocus) {
+                            hostList.currentIndex = index;
+                            hostList.keepSelectionVisible();
                         }
-                        HostArtwork {
-                            visible: hostGrid.height >= 270
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            Layout.minimumHeight: 74
-                            online: hostCard.online
+                    }
+                    Keys.onLeftPressed: hostList.focusHost(index - 1)
+                    Keys.onRightPressed: hostList.focusHost(index + 1)
+                    Keys.onUpPressed: page.navigationRequested()
+                    Keys.onDownPressed: {
+                        if (selectedHostAction.enabled)
+                            selectedHostAction.forceActiveFocus();
+                        else
+                            addComputerButton.forceActiveFocus();
+                    }
+                    Keys.onPressed: event => {
+                        if (event.key === Qt.Key_Home || event.key === Qt.Key_End) {
+                            hostList.focusHost(event.key === Qt.Key_Home ? 0 : hostList.count - 1);
+                            event.accepted = true;
+                        }
+                    }
+                    background: Item {}
+                    contentItem: ColumnLayout {
+                        spacing: 6
+                        HostAvatar {
+                            objectName: "hostAvatar" + host.index
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.preferredWidth: page.avatarSize
+                            Layout.preferredHeight: page.avatarSize
+                            identity: host.stableId.length > 0 ? host.stableId + "|" + host.port : host.endpoint
+                            online: host.online
+                            paired: host.paired
+                            selected: hostList.currentIndex === host.index
                         }
                         Label {
                             Layout.fillWidth: true
-                            text: hostCard.displayName
-                            font.pixelSize: page.televisionMode ? 24 : 19
+                            Layout.leftMargin: 8
+                            Layout.rightMargin: 8
+                            text: host.displayName
+                            font.pixelSize: page.televisionMode ? 23 : 18
                             font.weight: Font.DemiBold
+                            horizontalAlignment: Text.AlignHCenter
                             elide: Text.ElideRight
                         }
+                        RowLayout {
+                            Layout.alignment: Qt.AlignHCenter
+                            spacing: 6
+                            Rectangle {
+                                implicitWidth: 6
+                                implicitHeight: 6
+                                radius: 3
+                                color: host.online ? host.paired ? Theme.accent : Theme.warning : Theme.muted
+                            }
+                            Label {
+                                text: host.statusText
+                                color: host.online && !host.paired ? Theme.warning : Theme.muted
+                                font.pixelSize: page.televisionMode ? 16 : 12
+                            }
+                        }
                         Label {
                             Layout.fillWidth: true
-                            text: hostCard.endpoint
+                            Layout.leftMargin: 8
+                            Layout.rightMargin: 8
+                            text: host.endpoint
                             color: Theme.muted
-                            font.pixelSize: page.televisionMode ? 16 : 12
+                            font.pixelSize: page.televisionMode ? 14 : 11
+                            horizontalAlignment: Text.AlignHCenter
                             elide: Text.ElideMiddle
                         }
-                        OneButton {
-                            id: hostAction
-                            objectName: "hostAction" + hostCard.index
-                            Layout.fillWidth: true
-                            Layout.topMargin: 5
-                            primary: hostCard.online && hostCard.paired
-                            text: hostCard.paired ? qsTr("View games") : hostCard.pairing ? qsTr("Pairing…") : qsTr("Pair")
-                            symbol: hostCard.paired ? "arrow" : "plus"
-                            enabled: hostCard.online && !hostCard.pairing
-                            Accessible.name: text + " " + hostCard.displayName + " " + hostCard.endpoint
-                            onClicked: {
-                                if (hostCard.paired) {
-                                    if (page.computerModel.openHost(hostCard.index))
-                                        page.gamesRequested(hostCard.displayName, hostCard.endpoint);
-                                } else {
-                                    page.beginPairing(hostCard.index, hostCard.stableId, hostCard.endpoint);
-                                }
-                            }
-                            Keys.onRightPressed: hostGrid.focusAction(hostCard.index + 1)
-                            Keys.onLeftPressed: {
-                                if (hostCard.index % hostGrid.columns === 0)
-                                    page.navigationRequested();
-                                else
-                                    hostGrid.focusAction(hostCard.index - 1);
-                            }
-                            Keys.onDownPressed: hostGrid.focusAction(hostCard.index + hostGrid.columns)
-                            Keys.onUpPressed: {
-                                if (hostCard.index < hostGrid.columns)
-                                    addComputerButton.forceActiveFocus();
-                                else
-                                    hostGrid.focusAction(hostCard.index - hostGrid.columns);
-                            }
-                        }
                     }
-                    function focusAction() {
-                        hostAction.forceActiveFocus();
-                    }
+                    ToolTip.visible: hovered
+                    ToolTip.delay: 800
+                    ToolTip.text: displayName + "\n" + endpoint
                 }
-                function focusAction(index) {
-                    if (index < 0 || index >= count)
-                        return;
-                    positionViewAtIndex(index, GridView.Contain);
-                    const card = itemAtIndex(index);
-                    if (card)
-                        card.focusAction();
-                }
+            }
+            OneButton {
+                objectName: "nextHost"
+                Layout.preferredWidth: page.carouselControlWidth
+                Layout.alignment: Qt.AlignTop
+                Layout.topMargin: (page.avatarSize - Theme.controlHeight) / 2
+                visible: hostList.overflow
+                enabled: hostList.currentIndex + 1 < page.computerModel.count
+                symbol: "arrow"
+                quiet: true
+                Accessible.name: qsTr("Next computer")
+                onClicked: hostList.focusHost(hostList.currentIndex + 1)
             }
         }
-
+        HostAvatar {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.preferredWidth: page.avatarSize
+            Layout.preferredHeight: page.avatarSize
+            visible: page.computerModel.count === 0
+            online: false
+        }
+        OneButton {
+            id: selectedHostAction
+            objectName: "selectedHostAction"
+            Layout.alignment: Qt.AlignHCenter
+            Layout.minimumWidth: page.televisionMode ? 220 : 180
+            visible: page.computerModel.count > 0
+            enabled: page.selectedHost !== null && page.selectedHost.online && !page.selectedHost.pairing
+            primary: enabled
+            text: !page.selectedHost ? "" : !page.selectedHost.online ? page.selectedHost.status : page.selectedHost.pairing ? qsTr("Pairing…") : page.selectedHost.paired ? qsTr("View games") : qsTr("Pair computer")
+            symbol: page.selectedHost && page.selectedHost.online ? page.selectedHost.paired ? "arrow" : "plus" : ""
+            Accessible.name: text + (page.selectedHost ? " " + page.selectedHost.displayName + " " + page.selectedHost.endpoint : "")
+            onClicked: page.activateHost(page.selectedHost)
+            Keys.onUpPressed: hostList.focusHost(hostList.currentIndex)
+            Keys.onDownPressed: addComputerButton.forceActiveFocus()
+        }
+        Item {
+            Layout.fillHeight: true
+            Layout.maximumHeight: page.dense ? 0 : 60
+        }
         RowLayout {
-            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignHCenter
             spacing: 8
-            OneIcon {
-                name: "info"
-                color: Theme.muted
-                implicitWidth: 16
-                implicitHeight: 16
+            OneButton {
+                id: addComputerButton
+                objectName: "addComputerButton"
+                text: qsTr("Add computer")
+                symbol: "plus"
+                quiet: true
+                focus: page.computerModel.count === 0
+                onClicked: addComputerDialog.open()
+                Keys.onUpPressed: page.focusPrimaryAction()
+                Keys.onDownPressed: page.navigationRequested()
+                Keys.onRightPressed: refreshButton.forceActiveFocus()
             }
-            Label {
-                Layout.fillWidth: true
-                text: qsTr("Can’t see your computer? Add it using its hostname or IP address.")
-                color: Theme.muted
-                font.pixelSize: page.televisionMode ? 16 : 12
-                wrapMode: Text.WordWrap
+            OneButton {
+                id: refreshButton
+                objectName: "refreshComputers"
+                text: qsTr("Refresh")
+                symbol: "refresh"
+                quiet: true
+                onClicked: page.computerModel.refresh()
+                Keys.onUpPressed: page.focusPrimaryAction()
+                Keys.onDownPressed: page.navigationRequested()
+                Keys.onLeftPressed: addComputerButton.forceActiveFocus()
             }
         }
     }

@@ -112,6 +112,16 @@ backdrops, descriptions, and other future Sunshine metadata are not fabricated f
 Known computers (including manually added and unpaired instances) are saved between launches. Reachability is checked
 at startup, every 15 seconds, and with Refresh. Offline computers stay visible with their saved pairing state;
 different HTTP ports remain separate Sunshine instances.
+
+The computer picker uses a centered, circular profile carousel inspired by
+[Moonlight Xbox's UI V2 proposal](https://github.com/TheElixZammuto/moonlight-xbox/pull/283), implemented in One's shared
+QML interface with lunar artwork. Paired online profiles are full moons; unpaired online profiles are half moons.
+Both use a white selection ring in dark mode. Offline profiles are crescent moons regardless of pairing, with evenly
+spaced gray dashed rings. Light mode uses darker rings for contrast.
+Names, endpoints, and status remain visible. Arrow keys,
+Home/End, swipe, and pointer selection work across layouts. Offline profiles remain selectable but cannot connect.
+Navigation stays in the same place across pages: a desktop sidebar, TV top bar, or mobile/compact bottom bar.
+The ambient background is static, without continuously running visual effects.
 Choose **Settings → Appearance** for dark, light, or system colors; the preference is saved on the device. Stream
 quality settings are currently read-only while that configuration path is being implemented.
 

@@ -14,6 +14,30 @@ QtObject {
         function refresh() {
             refreshCount++;
         }
+        function setOnline(row, online) {
+            setProperty(row, "online", online);
+            setProperty(row, "status", online ? "Online" : "Offline");
+        }
+        function setPaired(row, paired) {
+            setProperty(row, "paired", paired);
+        }
+        function addExtraHosts() {
+            for (let n = 3; n < 9; ++n)
+                append({
+                    displayName: "Streaming PC " + (n + 1),
+                    stableId: "extra-" + n,
+                    address: "192.0.2.10",
+                    port: 47989 + n * 100,
+                    online: false,
+                    paired: false,
+                    pairing: false,
+                    status: "Offline"
+                });
+        }
+        function removeExtraHosts() {
+            if (count > 3)
+                remove(3, count - 3);
+        }
         signal pairingCompleted(string stableId, bool success, string error)
         function openHost(row) {
             openedRow = row;

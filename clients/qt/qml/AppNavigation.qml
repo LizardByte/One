@@ -34,6 +34,7 @@ Pane {
         }
         GridLayout {
             columns: navigationRoot.vertical ? 1 : 3
+            uniformCellWidths: true
             Layout.fillWidth: true
             columnSpacing: 8
             rowSpacing: 8
