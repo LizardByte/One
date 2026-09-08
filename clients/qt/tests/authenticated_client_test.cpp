@@ -12,8 +12,22 @@
 #include "application_list_client.hpp"
 #include "application_list_model.hpp"
 #include "client_identity.hpp"
+#include "host_list_model.hpp"
 #include "host_settings.hpp"
 #include "launch_request.hpp"
+#include "server_info_client.hpp"
+
+// Exercise the production polling setup without starting LAN mDNS discovery.
+class HostListModelTest {
+ public:
+  static std::unique_ptr<HostListModel> pollingModel() {
+    auto model = std::make_unique<HostListModel>(nullptr, false);
+    model->identity_ = std::make_unique<ClientIdentity>();
+    model->server_info_ = std::make_unique<ServerInfoClient>(*model->identity_);
+    model->startPolling();
+    return model;
+  }
+};
 
 namespace {
 
@@ -85,6 +99,32 @@ class TlsHost final : public QTcpServer {
 
  private:
   QSslConfiguration ssl_;
+};
+
+class HttpHost final : public QTcpServer {
+ public:
+  explicit HttpHost(quint16 https_port) {
+    body =
+        "<root status_code=\"200\"><uniqueid>poll-uuid</uniqueid><hostname>Polling PC</hostname>"
+        "<HttpsPort>" +
+        QByteArray::number(https_port) + "</HttpsPort><PairStatus>0</PairStatus></root>";
+    connect(this, &QTcpServer::newConnection, this, [this]() {
+      while (auto* socket = nextPendingConnection()) {
+        connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+        connect(socket, &QTcpSocket::readyRead, socket, [this, socket, buffer = QByteArray()]() mutable {
+          buffer += socket->readAll();
+          if (!buffer.contains("\r\n\r\n") || socket->property("responded").toBool()) return;
+          socket->setProperty("responded", true);
+          ++requests;
+          socket->write("HTTP/1.1 200 OK\r\nContent-Length: " + QByteArray::number(body.size()) +
+                        "\r\nConnection: close\r\n\r\n" + body);
+          socket->disconnectFromHost();
+        });
+      }
+    });
+  }
+  QByteArray body;
+  int requests{0};
 };
 
 }  // namespace
@@ -314,6 +354,108 @@ int main(int argc, char* argv[]) {
   failures +=
       expect(until([&]() { return artwork.size() == 1; }) && artwork[0][2].toString().isEmpty() && unpaired.isEmpty(),
              "oversized cover responses must be discarded without revoking pairing");
+
+  {
+    HttpHost first_http(first.serverPort());
+    HttpHost second_http(second.serverPort());
+    if (!first_http.listen(QHostAddress::LocalHost) || !second_http.listen(QHostAddress::LocalHost)) return 1;
+    const auto first_poll_id = hostInstanceId("poll-uuid", first_http.serverPort());
+    const auto second_poll_id = hostInstanceId("poll-uuid", second_http.serverPort());
+    saveServerCertificate(first_poll_id, server_one.certificatePem());
+    saveServerCertificate(second_poll_id, server_two.certificatePem());
+    auto authorized = [](const HttpHost& host) {
+      auto body = host.body;
+      return body.replace("<PairStatus>0", "<PairStatus>1");
+    };
+    first.body = authorized(first_http);
+    second.body = authorized(second_http);
+    auto model = HostListModelTest::pollingModel();
+    auto paired = [&](int row) { return model->data(model->index(row), HostListModel::PairedRole).toBool(); };
+    auto online = [&](int row) { return model->data(model->index(row), HostListModel::OnlineRole).toBool(); };
+    auto* timer = model->findChild<QTimer*>("hostRefreshTimer");
+    failures += expect(timer && timer->isActive() && timer->interval() == 3000,
+                       "host page must schedule polling every three seconds");
+    model->addManualHost("127.0.0.1", first_http.serverPort());
+    model->addManualHost("127.0.0.1", second_http.serverPort());
+    failures += expect(until([&]() { return online(0) && online(1) && paired(0) && paired(1); }),
+                       "host refresh must authenticate two separate instances despite plaintext PairStatus zero");
+    failures += expect(first.last_request.startsWith("GET /serverinfo?") &&
+                           first.client_certificate == QSslCertificate(client_identity.certificatePem()),
+                       "host page polls must send the client identity to authenticated serverinfo");
+
+    first.body = rejected;
+    model->refresh();
+    model->refresh();
+    failures += expect(until([&]() { return !paired(0); }) && online(0) && paired(1) &&
+                           hostNeedsPairing(first_poll_id) && !hostNeedsPairing(second_poll_id) &&
+                           loadServerCertificate(first_poll_id) == server_one.certificatePem(),
+                       "manual Refresh must unpair only the removed client and retain its server certificate");
+
+    first.body = authorized(first_http);
+    failures += expect(until([&]() { return paired(0); }) && !hostNeedsPairing(first_poll_id),
+                       "automatic polling must restore authorization when a trusted client is re-enabled");
+    first.status = 403;
+    failures += expect(until([&]() { return !paired(0); }) && online(0) && paired(1),
+                       "automatic polling must detect disabled clients without opening games");
+    first.status = 200;
+    model->refresh();
+    failures += expect(until([&]() { return paired(0); }), "manual Refresh must also restore a re-enabled client");
+    timer->stop();
+
+    QSignalSpy changes(model.get(), &HostListModel::dataChanged);
+    auto refresh_first = [&]() {
+      changes.clear();
+      model->refresh();
+      return until([&]() {
+        for (const auto& change : changes)
+          if (change[0].value<QModelIndex>().row() == 0) return true;
+        return false;
+      });
+    };
+    first.body = "<root status_code=\"500\" status_message=\"Temporary failure\"/>";
+    failures += expect(refresh_first() && paired(0) && online(0), "temporary errors must not unpair a host");
+    first.body = "<root status_code=\"401\">";
+    failures += expect(refresh_first() && paired(0), "malformed rejection XML must not revoke pairing");
+    first.body = authorized(first_http).replace("<PairStatus>1</PairStatus>", "");
+    failures += expect(refresh_first() && paired(0), "missing pairing status must not revoke pairing");
+    first.body = first_http.body;
+    failures +=
+        expect(refresh_first() && !paired(0) && online(0), "authenticated PairStatus zero must unpair the client");
+    first_http.body.replace("<PairStatus>0", "<PairStatus>1");
+    first.body = "<root status_code=\"500\"/>";
+    failures += expect(refresh_first() && !paired(0), "plaintext PairStatus must never restore rejected trust");
+    first.body = authorized(first_http);
+    failures += expect(refresh_first() && paired(0), "authenticated status must restore pairing");
+
+    saveServerCertificate(first_poll_id, server_two.certificatePem());
+    failures += expect(refresh_first() && !paired(0) && paired(1) && online(0),
+                       "host refresh must reject a mismatched server certificate only for that instance");
+    saveServerCertificate(first_poll_id, server_one.certificatePem());
+    failures += expect(refresh_first() && paired(0), "restoring the trusted certificate must allow authentication");
+
+    ServerInfoClient probe(client_identity);
+    QSignalSpy probe_status(&probe, &ServerInfoClient::pairingStatus);
+    QSignalSpy probe_done(&probe, &ServerInfoClient::succeeded);
+    first.body = rejected;
+    first.delay_ms = 150;
+    const auto previous_requests = first.requests;
+    probe.query("127.0.0.1", first_http.serverPort());
+    failures += expect(until([&]() { return first.requests > previous_requests; }), "delayed poll must reach TLS");
+    probe.cancel("127.0.0.1", first_http.serverPort());
+    first.body = authorized(first_http);
+    first.delay_ms = 0;
+    probe.query("127.0.0.1", first_http.serverPort());
+    failures += expect(until([&]() { return !probe_done.isEmpty(); }), "a new poll must proceed after cancellation");
+    QTest::qWait(200);
+    failures += expect(probe_done.size() == 1 && probe_status.size() == 1 && probe_status[0][1].toBool(),
+                       "a canceled pre-pairing poll must not emit a stale authorization rejection");
+    first.close();
+    failures += expect(refresh_first() && paired(0) && online(0),
+                       "a refused HTTPS connection must preserve pairing when HTTP remains reachable");
+    first_http.close();
+    failures += expect(refresh_first() && paired(0) && !online(0),
+                       "an unreachable host must become offline without losing its pairing");
+  }
 
   const auto closed_port = second.serverPort();
   second.close();

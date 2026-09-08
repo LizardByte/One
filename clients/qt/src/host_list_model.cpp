@@ -33,17 +33,23 @@ HostListModel::HostListModel(QObject* parent, const bool enableNetworkServices) 
                 },
                 true);
           });
+  connect(pairing_.get(), &PairingClient::completed, this, &HostListModel::handlePairingCompleted);
+  restoreHosts();
+  startPolling();
+  discovery_->start();
+}
+
+void HostListModel::startPolling() {
   connect(server_info_.get(), &ServerInfoClient::succeeded, this, &HostListModel::handleServerInfo);
+  connect(server_info_.get(), &ServerInfoClient::pairingStatus, this, &HostListModel::handlePairingStatus);
   connect(
       server_info_.get(), &ServerInfoClient::failed, this,
       [this](const QString& address, const quint16 port, const QString&) { handleServerInfoFailure(address, port); });
-  connect(pairing_.get(), &PairingClient::completed, this, &HostListModel::handlePairingCompleted);
-  restoreHosts();
   refresh();
   auto* refresh_timer = new QTimer(this);
   connect(refresh_timer, &QTimer::timeout, this, &HostListModel::refresh);
-  refresh_timer->start(15000);
-  discovery_->start();
+  refresh_timer->setObjectName(QStringLiteral("hostRefreshTimer"));
+  refresh_timer->start(3000);
 }
 
 HostListModel::~HostListModel() = default;
@@ -175,6 +181,7 @@ QString HostListModel::pairHost(const int row) {
     return {};
   }
 
+  if (server_info_) server_info_->cancel(QString::fromStdString(host.endpoint.address), host.endpoint.port);
   const auto pin = pairing_->start({
       .stable_id = stable_id,
       .address = QString::fromStdString(host.endpoint.address),
@@ -267,6 +274,8 @@ void HostListModel::handleServerInfo(const QString& address, const quint16 port,
 }
 
 void HostListModel::handlePairingCompleted(const QString& stable_id, const PairingResult& result) {
+  if (const auto* host = catalog_.find_by_id(stable_id.toStdString()); host && server_info_)
+    server_info_->cancel(QString::fromStdString(host->endpoint.address), host->endpoint.port);
   if (result.success) {
     saveServerCertificate(stable_id, result.server_certificate);
   }
@@ -274,6 +283,15 @@ void HostListModel::handlePairingCompleted(const QString& stable_id, const Pairi
       stable_id.toStdString(), result.success ? one::HostPairingState::paired : one::HostPairingState::unpaired));
   emitHostChanged(stable_id);
   emit pairingCompleted(stable_id, result.success, result.error);
+}
+
+void HostListModel::handlePairingStatus(const QString& stable_id, const bool paired) {
+  const auto* host = catalog_.find_by_id(stable_id.toStdString());
+  if (host && host->pairing == one::HostPairingState::pairing) return;
+  if (hostNeedsPairing(stable_id) != !paired) setHostNeedsPairing(stable_id, !paired);
+  static_cast<void>(catalog_.set_pairing_state(
+      stable_id.toStdString(), paired ? one::HostPairingState::paired : one::HostPairingState::unpaired));
+  emitHostChanged(stable_id);
 }
 
 void HostListModel::requirePairing(const QString& stable_id) {

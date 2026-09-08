@@ -110,7 +110,10 @@ retry action. The library uses responsive 3:4 portrait posters and a selected-ti
 backdrops, descriptions, and other future Sunshine metadata are not fabricated from the current application list.
 
 Known computers (including manually added and unpaired instances) are saved between launches. Reachability is checked
-at startup, every 15 seconds, and with Refresh. Offline computers stay visible with their saved pairing state;
+at startup, every 3 seconds, and with Refresh. Saved certificates are verified with authenticated `/serverinfo`
+requests, so removed or disabled clients become unpaired without opening the library. Re-enabling a still-trusted
+client restores its paired state. Temporary network failures do not revoke pairing.
+Offline computers stay visible with their saved pairing state;
 different HTTP ports remain separate Sunshine instances.
 
 The computer picker uses a centered, circular profile carousel inspired by

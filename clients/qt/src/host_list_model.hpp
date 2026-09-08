@@ -1,9 +1,8 @@
 #pragma once
 
-#include <memory>
-
 #include <QAbstractListModel>
 #include <QHash>
+#include <memory>
 
 #include "one/host.hpp"
 #include "server_info.hpp"
@@ -43,22 +42,17 @@ class HostListModel final : public QAbstractListModel {
  signals:
   void countChanged();
   void pairingCompleted(const QString& stableId, bool success, const QString& error);
-  void hostOpened(
-      const QString& stableId,
-      const QString& displayName,
-      const QString& address,
-      quint16 httpsPort,
-      const QString& appVersion,
-      const QString& gfeVersion,
-      int codecModeSupport,
-      int currentGameId);
+  void hostOpened(const QString& stableId, const QString& displayName, const QString& address, quint16 httpsPort,
+                  const QString& appVersion, const QString& gfeVersion, int codecModeSupport, int currentGameId);
 
  private:
+  void startPolling();
   void restoreHosts();
   void mergeHost(one::HostUpdate update, bool queryServerInfo);
   void handleServerInfo(const QString& address, quint16 port, const struct ServerInfo& info);
   void handleServerInfoFailure(const QString& address, quint16 port);
   void handlePairingCompleted(const QString& stableId, const struct PairingResult& result);
+  void handlePairingStatus(const QString& stableId, bool paired);
   void emitHostChanged(const QString& stableId);
 
   one::HostCatalog catalog_;

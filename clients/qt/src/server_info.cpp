@@ -3,7 +3,8 @@
 #include <QHash>
 #include <QXmlStreamReader>
 
-std::optional<ServerInfo> parseServerInfo(const QByteArray& xml, QString* error) {
+std::optional<ServerInfo> parseServerInfo(const QByteArray& xml, QString* error, int* response_status) {
+  if (response_status) *response_status = 0;
   QXmlStreamReader reader(xml);
   QHash<QString, QString> values;
   int status_code = 0;
@@ -34,8 +35,10 @@ std::optional<ServerInfo> parseServerInfo(const QByteArray& xml, QString* error)
   if (reader.hasError()) {
     return fail(reader.errorString());
   }
+  if (response_status) *response_status = status_code;
   if (status_code != 200) {
-    return fail(status_message.isEmpty() ? QStringLiteral("Server returned status %1").arg(status_code) : status_message);
+    return fail(status_message.isEmpty() ? QStringLiteral("Server returned status %1").arg(status_code)
+                                         : status_message);
   }
   if (values.value(QStringLiteral("uniqueid")).isEmpty()) {
     return fail(QStringLiteral("Server information is missing its unique ID"));
@@ -48,6 +51,7 @@ std::optional<ServerInfo> parseServerInfo(const QByteArray& xml, QString* error)
   info.gfe_version = values.value(QStringLiteral("GfeVersion"));
   info.state = values.value(QStringLiteral("state"));
   info.paired = values.value(QStringLiteral("PairStatus")) == QStringLiteral("1");
+  info.pairing_status_known = info.paired || values.value(QStringLiteral("PairStatus")) == QStringLiteral("0");
 
   // Older NVIDIA hosts can retain currentgame after the session has ended, so
   // it is only meaningful while the server explicitly reports itself busy.

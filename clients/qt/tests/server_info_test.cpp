@@ -1,6 +1,6 @@
-#include <iostream>
-
 #include "server_info.hpp"
+
+#include <iostream>
 
 namespace {
 
@@ -43,12 +43,18 @@ int main() {
   const auto stale_game = parseServerInfo(
       R"xml(<root status_code="200"><uniqueid>host</uniqueid><currentgame>42</currentgame><state>SUNSHINE_SERVER_FREE</state></root>)xml",
       &error);
-  failures += expect(stale_game && stale_game->current_game_id == 0, "stale game ID should be ignored while the host is free");
+  failures +=
+      expect(stale_game && stale_game->current_game_id == 0, "stale game ID should be ignored while the host is free");
 
   const auto rejected = parseServerInfo("<root status_code=\"503\" status_message=\"Busy\"/>", &error);
   failures += expect(!rejected.has_value() && error == QStringLiteral("Busy"), "error response should be rejected");
 
   const auto missing_id = parseServerInfo("<root status_code=\"200\"><hostname>PC</hostname></root>", &error);
   failures += expect(!missing_id.has_value(), "serverinfo without unique ID should be rejected");
+  int status = 0;
+  failures += expect(!parseServerInfo("<root status_code=\"401\"/>", nullptr, &status) && status == 401,
+                     "a complete authorization rejection must expose its status");
+  failures += expect(!parseServerInfo("<root status_code=\"401\">", nullptr, &status) && status == 0,
+                     "malformed XML must not expose a trusted rejection status");
   return failures == 0 ? 0 : 1;
 }
