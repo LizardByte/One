@@ -14,15 +14,14 @@ class ApplicationListClient final : public QObject {
  public:
   explicit ApplicationListClient(const ClientIdentity& identity, QObject* parent = nullptr);
 
-  void query(
-      const QString& stableId,
-      const QString& address,
-      quint16 httpsPort,
-      const QByteArray& serverCertificate);
+  void query(const QString& stableId, const QString& address, quint16 httpsPort, const QByteArray& serverCertificate,
+             int applicationId = -1);
 
  signals:
   void succeeded(const QString& stableId, const QVector<Application>& applications);
   void failed(const QString& stableId, const QString& error);
+  void authenticationRequired(const QString& stableId);
+  void artworkReady(const QString& stableId, int applicationId, const QString& imageSource);
 
  private:
   const ClientIdentity& identity_;

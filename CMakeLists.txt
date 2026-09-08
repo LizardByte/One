@@ -15,7 +15,13 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(ONE_BUILD_QT_CLIENT "Build the shared Qt Quick client" ON)
 option(ONE_BUILD_TESTS "Build One's tests" ON)
 option(ONE_PREFER_STATIC_DEPENDENCIES "Prefer static linkage for dependencies that support it" ON)
+option(ONE_WINDOWS_STATIC "Build Windows executables without third-party DLL dependencies" ${WIN32})
 option(ONE_PROTOCOL_USE_MBEDTLS "Use MbedTLS instead of OpenSSL for the streaming protocol" OFF)
+
+if(WIN32 AND ONE_WINDOWS_STATIC)
+    set(ONE_PREFER_STATIC_DEPENDENCIES ON)
+    include(cmake/windows_static.cmake)
+endif()
 
 if(ONE_PREFER_STATIC_DEPENDENCIES)
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build dependencies as static libraries" FORCE)

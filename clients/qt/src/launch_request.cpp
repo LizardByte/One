@@ -1,21 +1,19 @@
 #include "launch_request.hpp"
 
-#include <QNetworkProxy>
 #include <QDebug>
+#include <QNetworkProxy>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QSslCertificate>
 #include <QSslError>
-#include <QXmlStreamReader>
 #include <QUuid>
+#include <QXmlStreamReader>
 
 #include "client_identity.hpp"
 
 namespace {
 
-QString bool_number(const bool value) {
-  return value ? QStringLiteral("1") : QStringLiteral("0");
-}
+QString bool_number(const bool value) { return value ? QStringLiteral("1") : QStringLiteral("0"); }
 
 QString request_key(const QString& stable_id, const int application_id) {
   return stable_id + u':' + QString::number(application_id);
@@ -33,18 +31,13 @@ void append_moonlight_parameters(QUrlQuery& query, QString parameters) {
 
 }  // namespace
 
-QUrlQuery buildLaunchQuery(
-    const one::protocol::StreamLaunchParameters& stream,
-    const LaunchRequestOptions& options) {
+QUrlQuery buildLaunchQuery(const one::protocol::StreamLaunchParameters& stream, const LaunchRequestOptions& options) {
   QUrlQuery query;
   query.addQueryItem(QStringLiteral("appid"), QString::number(options.application_id));
 
-  const auto requested_fps = stream.frames_per_second > 60 && options.is_nvidia_server
-                                 ? 0
-                                 : stream.frames_per_second;
-  query.addQueryItem(
-      QStringLiteral("mode"),
-      QStringLiteral("%1x%2x%3").arg(stream.width).arg(stream.height).arg(requested_fps));
+  const auto requested_fps = stream.frames_per_second > 60 && options.is_nvidia_server ? 0 : stream.frames_per_second;
+  query.addQueryItem(QStringLiteral("mode"),
+                     QStringLiteral("%1x%2x%3").arg(stream.width).arg(stream.height).arg(requested_fps));
   query.addQueryItem(QStringLiteral("additionalStates"), QStringLiteral("1"));
   query.addQueryItem(QStringLiteral("sops"), bool_number(options.optimize_game_settings));
   query.addQueryItem(QStringLiteral("rikey"), QString::fromStdString(stream.remote_input_aes_key_hex));
@@ -67,7 +60,8 @@ QUrlQuery buildLaunchQuery(
   return query;
 }
 
-std::optional<LaunchResponse> parseLaunchResponse(const QByteArray& xml, QString* error) {
+std::optional<LaunchResponse> parseLaunchResponse(const QByteArray& xml, QString* error, int* responseStatus) {
+  if (responseStatus != nullptr) *responseStatus = 0;
   QXmlStreamReader reader(xml);
   int status_code = 0;
   QString status_message;
@@ -94,8 +88,10 @@ std::optional<LaunchResponse> parseLaunchResponse(const QByteArray& xml, QString
   if (reader.hasError()) {
     return fail(reader.errorString());
   }
+  if (responseStatus != nullptr) *responseStatus = status_code;
   if (status_code != 200) {
-    return fail(status_message.isEmpty() ? QStringLiteral("Server returned status %1").arg(status_code) : status_message);
+    return fail(status_message.isEmpty() ? QStringLiteral("Server returned status %1").arg(status_code)
+                                         : status_message);
   }
   return response;
 }
@@ -105,14 +101,9 @@ LaunchClient::LaunchClient(const ClientIdentity& identity, QObject* parent)
   network_.setProxy(QNetworkProxy::NoProxy);
 }
 
-void LaunchClient::send(
-    const QString& stable_id,
-    const QString& address,
-    const quint16 https_port,
-    const QByteArray& server_certificate_pem,
-    const LaunchAction action,
-    const one::protocol::StreamLaunchParameters& stream,
-    const LaunchRequestOptions& options) {
+void LaunchClient::send(const QString& stable_id, const QString& address, const quint16 https_port,
+                        const QByteArray& server_certificate_pem, const LaunchAction action,
+                        const one::protocol::StreamLaunchParameters& stream, const LaunchRequestOptions& options) {
   const auto key = request_key(stable_id, options.application_id);
   if (stable_id.isEmpty() || address.isEmpty() || https_port == 0 || options.application_id <= 0 ||
       pending_.contains(key)) {
@@ -121,6 +112,7 @@ void LaunchClient::send(
 
   const QSslCertificate server_certificate(server_certificate_pem);
   if (server_certificate.isNull()) {
+    emit authenticationRequired(stable_id);
     emit failed(stable_id, options.application_id, tr("The paired server certificate is missing or invalid."));
     return;
   }
@@ -147,6 +139,7 @@ void LaunchClient::send(
   connect(reply, &QNetworkReply::sslErrors, reply, [reply, server_certificate](const QList<QSslError>& errors) {
     for (const auto& ssl_error : errors) {
       if (ssl_error.certificate() != server_certificate) {
+        if (!ssl_error.certificate().isNull()) reply->setProperty("oneCertificateMismatch", true);
         return;
       }
     }
@@ -155,22 +148,38 @@ void LaunchClient::send(
 
   connect(reply, &QNetworkReply::finished, this, [this, reply, stable_id, server_certificate, options, key]() {
     pending_.remove(key);
+    const auto peer_certificate = reply->sslConfiguration().peerCertificate();
+    if (reply->property("oneCertificateMismatch").toBool() ||
+        (!peer_certificate.isNull() && peer_certificate != server_certificate)) {
+      emit authenticationRequired(stable_id);
+      reply->deleteLater();
+      emit failed(stable_id, options.application_id,
+                  tr("The server certificate no longer matches this Sunshine instance. Pair it again to continue."));
+      return;
+    }
     if (reply->error() != QNetworkReply::NoError) {
+      if (peer_certificate == server_certificate &&
+          reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 401)
+        emit authenticationRequired(stable_id);
       const auto network_error = reply->errorString();
       reply->deleteLater();
       emit failed(stable_id, options.application_id, network_error);
       return;
     }
     if (reply->sslConfiguration().peerCertificate() != server_certificate) {
+      emit authenticationRequired(stable_id);
       reply->deleteLater();
-      emit failed(stable_id, options.application_id, tr("The server certificate no longer matches the paired computer."));
+      emit failed(stable_id, options.application_id,
+                  tr("The server certificate no longer matches the paired computer."));
       return;
     }
 
     QString parse_error;
-    const auto response = parseLaunchResponse(reply->readAll(), &parse_error);
+    int response_status = 0;
+    const auto response = parseLaunchResponse(reply->readAll(), &parse_error, &response_status);
     reply->deleteLater();
     if (!response.has_value()) {
+      if (response_status == 401) emit authenticationRequired(stable_id);
       emit failed(stable_id, options.application_id, parse_error);
       return;
     }
@@ -178,11 +187,8 @@ void LaunchClient::send(
   });
 }
 
-void LaunchClient::cancel(
-    const QString& stable_id,
-    const QString& address,
-    const quint16 https_port,
-    const QByteArray& server_certificate_pem) {
+void LaunchClient::cancel(const QString& stable_id, const QString& address, const quint16 https_port,
+                          const QByteArray& server_certificate_pem) {
   const QSslCertificate server_certificate(server_certificate_pem);
   if (stable_id.isEmpty() || address.isEmpty() || https_port == 0 || server_certificate.isNull()) {
     return;
@@ -208,14 +214,25 @@ void LaunchClient::cancel(
   connect(reply, &QNetworkReply::sslErrors, reply, [reply, server_certificate](const QList<QSslError>& errors) {
     for (const auto& ssl_error : errors) {
       if (ssl_error.certificate() != server_certificate) {
+        if (!ssl_error.certificate().isNull()) reply->setProperty("oneCertificateMismatch", true);
         return;
       }
     }
     reply->ignoreSslErrors(errors);
   });
-  connect(reply, &QNetworkReply::finished, reply, [reply, server_certificate]() {
-    if (reply->error() != QNetworkReply::NoError ||
-        reply->sslConfiguration().peerCertificate() != server_certificate) {
+  connect(reply, &QNetworkReply::finished, this, [this, reply, stable_id, server_certificate]() {
+    const auto peer_certificate = reply->sslConfiguration().peerCertificate();
+    if (reply->property("oneCertificateMismatch").toBool() ||
+        (!peer_certificate.isNull() && peer_certificate != server_certificate)) {
+      emit authenticationRequired(stable_id);
+    } else if (peer_certificate == server_certificate) {
+      int response_status = 0;
+      if (reply->error() == QNetworkReply::NoError)
+        static_cast<void>(parseLaunchResponse(reply->readAll(), nullptr, &response_status));
+      if (response_status == 401 || reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 401)
+        emit authenticationRequired(stable_id);
+    }
+    if (reply->error() != QNetworkReply::NoError || reply->sslConfiguration().peerCertificate() != server_certificate) {
       qWarning() << "Unable to cancel the host application:" << reply->errorString();
     }
     reply->deleteLater();

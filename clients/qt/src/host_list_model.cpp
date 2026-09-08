@@ -1,9 +1,9 @@
 #include "host_list_model.hpp"
 
+#include <QString>
+#include <QUrl>
 #include <limits>
 #include <utility>
-
-#include <QString>
 
 #include "client_identity.hpp"
 #include "host_discovery_service.hpp"
@@ -21,26 +21,21 @@ HostListModel::HostListModel(QObject* parent, const bool enableNetworkServices) 
   server_info_ = std::make_unique<ServerInfoClient>(*identity_);
   discovery_ = std::make_unique<HostDiscoveryService>();
 
-  connect(discovery_.get(), &HostDiscoveryService::hostDiscovered, this, [this](
-                                                                            const QString& name,
-                                                                            const QString& address,
-                                                                            const quint16 port) {
-    mergeHost(
-        {
-            .display_name = name.toStdString(),
-            .endpoint = {address.toStdString(), port},
-            .origin = one::HostOrigin::discovered,
-            .reachability = one::HostReachability::unknown,
-        },
-        true);
-  });
+  connect(discovery_.get(), &HostDiscoveryService::hostDiscovered, this,
+          [this](const QString& name, const QString& address, const quint16 port) {
+            mergeHost(
+                {
+                    .display_name = name.toStdString(),
+                    .endpoint = {address.toStdString(), port},
+                    .origin = one::HostOrigin::discovered,
+                    .reachability = one::HostReachability::unknown,
+                },
+                true);
+          });
   connect(server_info_.get(), &ServerInfoClient::succeeded, this, &HostListModel::handleServerInfo);
-  connect(server_info_.get(), &ServerInfoClient::failed, this, [this](
-                                                                     const QString& address,
-                                                                     const quint16 port,
-                                                                     const QString&) {
-    handleServerInfoFailure(address, port);
-  });
+  connect(
+      server_info_.get(), &ServerInfoClient::failed, this,
+      [this](const QString& address, const quint16 port, const QString&) { handleServerInfoFailure(address, port); });
   connect(pairing_.get(), &PairingClient::completed, this, &HostListModel::handlePairingCompleted);
   discovery_->start();
 }
@@ -94,27 +89,32 @@ QVariant HostListModel::data(const QModelIndex& index, const int role) const {
 
 QHash<int, QByteArray> HostListModel::roleNames() const {
   return {
-      {DisplayNameRole, "displayName"},
-      {StableIdRole, "stableId"},
-      {AddressRole, "address"},
-      {PortRole, "port"},
-      {OnlineRole, "online"},
-      {PairedRole, "paired"},
-      {PairingRole, "pairing"},
-      {ManuallyAddedRole, "manuallyAdded"},
+      {DisplayNameRole, "displayName"}, {StableIdRole, "stableId"},
+      {AddressRole, "address"},         {PortRole, "port"},
+      {OnlineRole, "online"},           {PairedRole, "paired"},
+      {PairingRole, "pairing"},         {ManuallyAddedRole, "manuallyAdded"},
       {StatusRole, "status"},
   };
 }
 
 bool HostListModel::addManualHost(const QString& address, const int port) {
-  const auto normalized_address = address.trimmed();
-  if (normalized_address.isEmpty() || port <= 0 || port > std::numeric_limits<std::uint16_t>::max()) {
+  auto normalized_address = address.trimmed();
+  int instance_port = port;
+  if (normalized_address.startsWith(u'[') || normalized_address.count(u':') == 1) {
+    const QUrl endpoint_url(QStringLiteral("http://") + normalized_address);
+    if (!endpoint_url.isValid() || endpoint_url.host().isEmpty() || !endpoint_url.userInfo().isEmpty() ||
+        !endpoint_url.path().isEmpty() || endpoint_url.hasQuery() || endpoint_url.hasFragment())
+      return false;
+    normalized_address = endpoint_url.host();
+    instance_port = endpoint_url.port(port);
+  }
+  if (normalized_address.isEmpty() || instance_port <= 0 || instance_port > std::numeric_limits<std::uint16_t>::max()) {
     return false;
   }
 
-  one::HostEndpoint endpoint {
+  one::HostEndpoint endpoint{
       .address = normalized_address.toStdString(),
-      .port = static_cast<std::uint16_t>(port),
+      .port = static_cast<std::uint16_t>(instance_port),
   };
   mergeHost(
       {
@@ -167,8 +167,8 @@ bool HostListModel::openHost(const int row) {
   }
 
   const auto& host = catalog_.hosts()[static_cast<std::size_t>(row)];
-  if (host.reachability != one::HostReachability::online ||
-      host.pairing != one::HostPairingState::paired || host.stable_id.empty()) {
+  if (host.reachability != one::HostReachability::online || host.pairing != one::HostPairingState::paired ||
+      host.stable_id.empty()) {
     return false;
   }
 
@@ -178,15 +178,9 @@ bool HostListModel::openHost(const int row) {
     return false;
   }
 
-  emit hostOpened(
-      stable_id,
-      QString::fromStdString(host.display_name),
-      QString::fromStdString(host.endpoint.address),
-      server_info->https_port,
-      server_info->app_version,
-      server_info->gfe_version,
-      server_info->codec_mode_support,
-      server_info->current_game_id);
+  emit hostOpened(stable_id, QString::fromStdString(host.display_name), QString::fromStdString(host.endpoint.address),
+                  server_info->https_port, server_info->app_version, server_info->gfe_version,
+                  server_info->codec_mode_support, server_info->current_game_id);
   return true;
 }
 
@@ -214,18 +208,17 @@ void HostListModel::mergeHost(one::HostUpdate update, const bool queryServerInfo
   }
 }
 
-void HostListModel::handleServerInfo(
-    const QString& address,
-    const quint16 port,
-    const ServerInfo& info) {
-  server_info_by_id_.insert(info.stable_id, info);
+void HostListModel::handleServerInfo(const QString& address, const quint16 port, const ServerInfo& info) {
+  const auto instance_id = hostInstanceId(info.stable_id, port);
+  migrateLegacyHostCertificate(info.stable_id, port);
+  server_info_by_id_.insert(instance_id, info);
 
   auto pairing_state = one::HostPairingState::unpaired;
-  const auto stable_id = info.stable_id.toStdString();
+  const auto stable_id = instance_id.toStdString();
   if (const auto* existing = catalog_.find_by_id(stable_id);
       existing != nullptr && existing->pairing == one::HostPairingState::pairing) {
     pairing_state = one::HostPairingState::pairing;
-  } else if (info.paired || !loadServerCertificate(info.stable_id).isEmpty()) {
+  } else if (!hostNeedsPairing(instance_id) && !loadServerCertificate(instance_id).isEmpty()) {
     pairing_state = one::HostPairingState::paired;
   }
 
@@ -246,10 +239,15 @@ void HostListModel::handlePairingCompleted(const QString& stable_id, const Pairi
     saveServerCertificate(stable_id, result.server_certificate);
   }
   static_cast<void>(catalog_.set_pairing_state(
-      stable_id.toStdString(),
-      result.success ? one::HostPairingState::paired : one::HostPairingState::unpaired));
+      stable_id.toStdString(), result.success ? one::HostPairingState::paired : one::HostPairingState::unpaired));
   emitHostChanged(stable_id);
   emit pairingCompleted(stable_id, result.success, result.error);
+}
+
+void HostListModel::requirePairing(const QString& stable_id) {
+  setHostNeedsPairing(stable_id, true);
+  static_cast<void>(catalog_.set_pairing_state(stable_id.toStdString(), one::HostPairingState::unpaired));
+  emitHostChanged(stable_id);
 }
 
 void HostListModel::emitHostChanged(const QString& stable_id) {

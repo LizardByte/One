@@ -1,7 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import One
 
@@ -12,20 +12,22 @@ Page {
     required property int applicationId
     required property string applicationTitle
     required property var streamingController
-    signal backRequested()
-
-    function leaveStream() {
-        page.streamingController.stop()
-        page.backRequested()
+    signal backRequested
+    function focusPrimaryAction() {
+        disconnectButton.forceActiveFocus();
     }
 
-    Component.onCompleted: page.streamingController.startApplication(
-        page.applicationId,
-        page.applicationTitle,
-        videoOutput)
+    function leaveStream() {
+        page.streamingController.stop();
+        page.backRequested();
+    }
+
+    Component.onCompleted: page.streamingController.startApplication(page.applicationId, page.applicationTitle, videoOutput)
     Component.onDestruction: page.streamingController.stop()
 
-    background: Rectangle { color: "black" }
+    background: Rectangle {
+        color: "black"
+    }
 
     StreamVideoOutput {
         id: videoOutput
@@ -36,18 +38,20 @@ Page {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        height: controls.implicitHeight + 24
-        color: "#B0000000"
+        height: controls.implicitHeight + 32
+        color: "#EB141D20"
         visible: !videoOutput.inputCaptured
 
         RowLayout {
             id: controls
             anchors.fill: parent
-            anchors.margins: 12
+            anchors.margins: 16
             spacing: 12
 
-            Button {
-                text: qsTr("Back")
+            OneButton {
+                id: disconnectButton
+                text: qsTr("Disconnect")
+                symbol: "back"
                 focusPolicy: Qt.StrongFocus
                 onClicked: page.leaveStream()
             }
@@ -55,7 +59,7 @@ Page {
             Label {
                 Layout.fillWidth: true
                 text: page.applicationTitle
-                color: "white"
+                color: "#F2F6F4"
                 font.pixelSize: page.televisionMode ? 24 : 18
                 font.bold: true
                 elide: Text.ElideRight
@@ -67,18 +71,15 @@ Page {
             }
 
             Label {
-                visible: page.streamingController.controllerCount > 0
-                text: page.streamingController.controllerCount === 1
-                    ? qsTr("1 controller")
-                    : qsTr("%1 controllers").arg(page.streamingController.controllerCount)
-                color: "white"
-                opacity: 0.82
+                visible: page.width > 720 && page.streamingController.controllerCount > 0
+                text: page.streamingController.controllerCount === 1 ? qsTr("1 controller") : qsTr("%1 controllers").arg(page.streamingController.controllerCount)
+                color: "#A6B6B4"
             }
 
             Label {
+                visible: page.width > 900
                 text: page.streamingController.status
-                color: "white"
-                opacity: 0.82
+                color: "#A6B6B4"
                 elide: Text.ElideRight
                 Layout.maximumWidth: 420
             }
@@ -89,7 +90,7 @@ Page {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 24
-        width: inputHint.implicitWidth + 28
+        width: Math.min(parent.width - 32, inputHint.implicitWidth + 28)
         height: inputHint.implicitHeight + 18
         radius: height / 2
         color: "#C0000000"
@@ -98,12 +99,15 @@ Page {
         Label {
             id: inputHint
             anchors.centerIn: parent
+            width: parent.width - 28
             text: qsTr("Click the stream to capture input · Ctrl+Alt+Shift+Z releases it")
             color: "white"
+            wrapMode: Text.WordWrap
+            horizontalAlignment: Text.AlignHCenter
         }
     }
 
-    Frame {
+    Surface {
         anchors.centerIn: parent
         width: Math.min(parent.width - 48, 560)
         visible: page.streamingController.error.length > 0
@@ -119,12 +123,40 @@ Page {
                 horizontalAlignment: Text.AlignHCenter
             }
 
-            Button {
+            OneButton {
                 Layout.alignment: Qt.AlignHCenter
                 text: qsTr("Back to applications")
+                primary: true
                 focusPolicy: Qt.StrongFocus
                 onClicked: page.leaveStream()
             }
+        }
+    }
+
+    ColumnLayout {
+        anchors.centerIn: parent
+        width: Math.min(parent.width - 48, 480)
+        visible: page.streamingController.busy && !page.streamingController.streaming && page.streamingController.error.length === 0
+        spacing: 16
+        BusyIndicator {
+            Layout.alignment: Qt.AlignHCenter
+            running: parent.visible
+        }
+        Label {
+            Layout.fillWidth: true
+            text: qsTr("Connecting")
+            color: "#F2F6F4"
+            font.pixelSize: page.televisionMode ? 28 : 23
+            font.weight: Font.DemiBold
+            wrapMode: Text.WordWrap
+            horizontalAlignment: Text.AlignHCenter
+        }
+        Label {
+            Layout.fillWidth: true
+            text: page.streamingController.status
+            color: "#A6B6B4"
+            wrapMode: Text.WordWrap
+            horizontalAlignment: Text.AlignHCenter
         }
     }
 }

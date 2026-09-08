@@ -1,38 +1,50 @@
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Controls.Basic
 import QtQuick.Layouts
 
 Page {
     id: page
-
     required property bool televisionMode
-
-    padding: televisionMode ? 48 : 28
-
-    ColumnLayout {
+    signal navigationRequested
+    function focusPrimaryAction() {
+        aboutScroll.forceActiveFocus();
+    }
+    padding: televisionMode ? 32 : 24
+    background: Rectangle {
+        color: Theme.background
+    }
+    ScrollView {
+        id: aboutScroll
         anchors.fill: parent
-        spacing: 16
-
-        Label {
-            text: qsTr("About One")
-            font.pixelSize: page.televisionMode ? 36 : 30
-            font.bold: true
+        contentWidth: availableWidth
+        clip: true
+        Keys.onLeftPressed: page.navigationRequested()
+        Keys.onEscapePressed: page.navigationRequested()
+        ColumnLayout {
+            width: parent.width
+            spacing: 18
+            Label {
+                text: qsTr("About One")
+                font.pixelSize: Theme.titleSize
+                font.weight: Font.DemiBold
+            }
+            Label {
+                text: qsTr("Version %1").arg(Qt.application.version)
+                color: Theme.muted
+            }
+            Label {
+                Layout.fillWidth: true
+                Layout.maximumWidth: 640
+                text: qsTr("One is a game-streaming client for Sunshine.")
+                wrapMode: Text.WordWrap
+            }
+            Label {
+                Layout.fillWidth: true
+                Layout.maximumWidth: 640
+                text: qsTr("A LizardByte project. Licensed under the GNU General Public License version 3.")
+                wrapMode: Text.WordWrap
+                color: Theme.muted
+            }
         }
-
-        Label {
-            Layout.maximumWidth: 720
-            text: qsTr("One is a universal client for streaming games and applications from Sunshine.")
-            wrapMode: Text.WordWrap
-        }
-
-        Label {
-            Layout.maximumWidth: 720
-            text: qsTr("This interface is shared by desktop, Android, Android TV, iOS, and Apple TV targets. Platform-native services provide decoding, rendering, audio, input, and application lifecycle integration.")
-            wrapMode: Text.WordWrap
-            opacity: 0.72
-        }
-
-        Item { Layout.fillHeight: true }
     }
 }
-

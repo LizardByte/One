@@ -1,57 +1,138 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Controls.Basic
 import QtQuick.Layouts
 
 Page {
     id: page
-
     required property bool televisionMode
+    signal navigationRequested
+    function focusPrimaryAction() {
+        appearanceChoices.itemAt(Theme.appearance).forceActiveFocus();
+    }
+    padding: televisionMode ? 32 : 24
+    background: Rectangle {
+        color: Theme.background
+    }
 
-    padding: televisionMode ? 48 : 28
-
-    ColumnLayout {
+    ScrollView {
         anchors.fill: parent
-        spacing: page.televisionMode ? 24 : 16
-
-        Label {
-            text: qsTr("Settings")
-            font.pixelSize: page.televisionMode ? 36 : 30
-            font.bold: true
-        }
-
-        Frame {
-            Layout.fillWidth: true
-
-            GridLayout {
-                anchors.fill: parent
-                columns: page.televisionMode ? 2 : (page.width >= 720 ? 2 : 1)
-                columnSpacing: 24
-                rowSpacing: 18
-
-                Label { text: qsTr("Resolution") }
-                ComboBox {
-                    Layout.fillWidth: true
-                    model: [qsTr("Native"), qsTr("1920 × 1080"), qsTr("1280 × 720")]
-                    focusPolicy: Qt.StrongFocus
+        contentWidth: availableWidth
+        clip: true
+        ColumnLayout {
+            width: parent.width
+            spacing: 24
+            Label {
+                text: qsTr("Settings")
+                font.pixelSize: Theme.titleSize
+                font.weight: Font.DemiBold
+            }
+            Surface {
+                Layout.fillWidth: true
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 14
+                    Label {
+                        text: qsTr("Appearance")
+                        font.pixelSize: Theme.television ? 24 : 18
+                        font.weight: Font.DemiBold
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Repeater {
+                            id: appearanceChoices
+                            model: [qsTr("Dark"), qsTr("Light"), qsTr("System")]
+                            delegate: OneButton {
+                                required property int index
+                                required property string modelData
+                                objectName: "appearance" + index
+                                Layout.fillWidth: true
+                                text: modelData
+                                checkable: true
+                                checked: Theme.appearance === index
+                                onClicked: Theme.appearance = index
+                                Keys.onUpPressed: page.navigationRequested()
+                                Keys.onLeftPressed: {
+                                    if (index > 0)
+                                        appearanceChoices.itemAt(index - 1).forceActiveFocus();
+                                    else
+                                        page.navigationRequested();
+                                }
+                                Keys.onRightPressed: {
+                                    if (index < 2)
+                                        appearanceChoices.itemAt(index + 1).forceActiveFocus();
+                                }
+                            }
+                        }
+                    }
                 }
-
-                Label { text: qsTr("Frame rate") }
-                ComboBox {
-                    Layout.fillWidth: true
-                    model: [qsTr("60 FPS"), qsTr("120 FPS")]
-                    focusPolicy: Qt.StrongFocus
+            }
+            Surface {
+                Layout.fillWidth: true
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 14
+                    Label {
+                        text: qsTr("Streaming")
+                        font.pixelSize: Theme.television ? 24 : 18
+                        font.weight: Font.DemiBold
+                    }
+                    Label {
+                        Layout.fillWidth: true
+                        text: qsTr("Current PC defaults. Quality settings are not configurable yet.")
+                        color: Theme.muted
+                        wrapMode: Text.WordWrap
+                    }
+                    Repeater {
+                        model: [
+                            {
+                                label: qsTr("Resolution"),
+                                value: qsTr("1920 × 1080")
+                            },
+                            {
+                                label: qsTr("Frame rate"),
+                                value: qsTr("60 FPS")
+                            },
+                            {
+                                label: qsTr("Video format"),
+                                value: qsTr("H.264 · SDR")
+                            }
+                        ]
+                        delegate: RowLayout {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            Label {
+                                text: parent.modelData.label
+                                color: Theme.muted
+                                Layout.fillWidth: true
+                            }
+                            Label {
+                                text: parent.modelData.value
+                            }
+                        }
+                    }
                 }
-
-                Label { text: qsTr("Video codec") }
-                ComboBox {
-                    Layout.fillWidth: true
-                    model: [qsTr("Automatic"), qsTr("H.264"), qsTr("HEVC"), qsTr("AV1")]
-                    focusPolicy: Qt.StrongFocus
+            }
+            Surface {
+                Layout.fillWidth: true
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 12
+                    Label {
+                        text: qsTr("Keyboard and mouse")
+                        font.pixelSize: Theme.television ? 24 : 18
+                        font.weight: Font.DemiBold
+                    }
+                    Label {
+                        Layout.fillWidth: true
+                        text: qsTr("Click the video to capture input. Press Ctrl + Alt + Shift + Z to release it.")
+                        wrapMode: Text.WordWrap
+                        color: Theme.muted
+                    }
                 }
             }
         }
-
-        Item { Layout.fillHeight: true }
     }
 }
-

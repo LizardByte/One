@@ -1,3 +1,15 @@
+# MSYS2 upgrades preserve package file timestamps. Put Qt's version in every
+# compile command so an upgrade cannot leave mixed old/new inline container
+# implementations in the executable (the cause of the pairing-worker crash).
+add_compile_definitions(ONE_QT_BUILD_VERSION="${Qt6_VERSION}")
+
+if(WIN32 AND ONE_WINDOWS_STATIC)
+    get_target_property(_one_qt_type Qt6::Core TYPE)
+    if(NOT _one_qt_type STREQUAL "STATIC_LIBRARY")
+        message(FATAL_ERROR "ONE_WINDOWS_STATIC requires static Qt. Use a fresh build directory and set CMAKE_PREFIX_PATH to the qt6-static installation.")
+    endif()
+endif()
+
 set(BUILD_DOC OFF CACHE BOOL "Do not build qmdnsengine documentation" FORCE)
 set(BUILD_EXAMPLES OFF CACHE BOOL "Do not build qmdnsengine examples" FORCE)
 set(BUILD_TESTS OFF CACHE BOOL "Do not build qmdnsengine's tests" FORCE)
@@ -9,8 +21,12 @@ if(NOT ANDROID AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS" AND NOT CMAKE_SYSTEM_NAM
     find_package(PkgConfig QUIET)
     find_package(SDL3 CONFIG QUIET)
     if(PkgConfig_FOUND)
-        pkg_check_modules(ONE_FFMPEG QUIET libavcodec libavutil libswscale)
         pkg_check_modules(ONE_OPUS QUIET opus)
+        if(WIN32 AND ONE_WINDOWS_STATIC)
+            include(${PROJECT_SOURCE_DIR}/cmake/ffmpeg_decoder.cmake)
+        else()
+            pkg_check_modules(ONE_FFMPEG QUIET libavcodec libavutil libswscale)
+        endif()
     endif()
     if(ONE_FFMPEG_FOUND AND ONE_OPUS_FOUND AND TARGET SDL3::SDL3-static)
         set(ONE_HAS_DESKTOP_MEDIA ON)
@@ -23,7 +39,11 @@ if(NOT ANDROID AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS" AND NOT CMAKE_SYSTEM_NAM
             ${ONE_FFMPEG_STATIC_LIBRARY_DIRS}
             ${ONE_OPUS_STATIC_LIBRARY_DIRS}
         )
-        if(MINGW AND ONE_PREFER_STATIC_DEPENDENCIES)
+        if(WIN32 AND ONE_WINDOWS_STATIC)
+            target_link_libraries(one_desktop_media_dependencies INTERFACE
+                One::FFmpeg ${ONE_OPUS_STATIC_LIBRARIES} SDL3::SDL3-static
+            )
+        elseif(MINGW AND ONE_PREFER_STATIC_DEPENDENCIES)
             # The complete MSYS2 FFmpeg static closure contains conflicting Rust
             # runtimes and a Windows-incompatible libdl dependency. Keep the
             # small FFmpeg ABI surface shared until One has a decoder-only build;
@@ -49,6 +69,9 @@ if(NOT ANDROID AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS" AND NOT CMAKE_SYSTEM_NAM
         )
         message(STATUS "One desktop media backend enabled with decoder-enabled FFmpeg")
     else()
+        if(WIN32 AND ONE_WINDOWS_STATIC)
+            message(FATAL_ERROR "The static Windows client requires Opus, static SDL3, and decoder-enabled static FFmpeg.")
+        endif()
         message(STATUS "One desktop media backend disabled: decoder-enabled FFmpeg, Opus, and static SDL3 are required")
     endif()
 endif()
@@ -135,10 +158,9 @@ if(MINGW AND ONE_PREFER_STATIC_DEPENDENCIES)
     )
 endif()
 
-qt_add_qml_module(one
-    URI One
-    VERSION 1.0
-    QML_FILES
+set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+
+set(ONE_QML_FILES
         qml/Main.qml
         qml/AppNavigation.qml
         qml/AboutPage.qml
@@ -146,6 +168,19 @@ qt_add_qml_module(one
         qml/GamesPage.qml
         qml/SettingsPage.qml
         qml/StreamPage.qml
+        qml/Theme.qml
+        qml/OneIcon.qml
+        qml/OneButton.qml
+        qml/Surface.qml
+        qml/StatusBadge.qml
+        qml/OneDialog.qml
+        qml/HostArtwork.qml
+)
+
+qt_add_qml_module(one
+    URI One
+    VERSION 1.0
+    QML_FILES ${ONE_QML_FILES}
     SOURCES
         src/stream_video_output.cpp
         src/stream_video_output.hpp
@@ -156,12 +191,63 @@ set_target_properties(one PROPERTIES
     WIN32_EXECUTABLE TRUE
 )
 
+if(WIN32 AND ONE_WINDOWS_STATIC AND MINGW)
+    add_custom_command(TARGET one POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -DONE_EXECUTABLE=$<TARGET_FILE:one> -DONE_OBJDUMP=${CMAKE_OBJDUMP}
+            -P ${PROJECT_SOURCE_DIR}/cmake/check_windows_linkage.cmake
+        VERBATIM
+    )
+    if(ONE_BUILD_TESTS)
+        add_test(NAME one.windows.static_linkage
+            COMMAND ${CMAKE_COMMAND} -DONE_EXECUTABLE=$<TARGET_FILE:one> -DONE_OBJDUMP=${CMAKE_OBJDUMP}
+                -P ${PROJECT_SOURCE_DIR}/cmake/check_windows_linkage.cmake
+        )
+    endif()
+endif()
+
 if(ONE_BUILD_TESTS)
+    find_package(Qt6 6.8 REQUIRED COMPONENTS Test)
+    if(WIN32 AND ONE_WINDOWS_STATIC)
+        # Static Qt only imports the native platform plugin by default. The
+        # headless validation paths must also embed their offscreen backend.
+        qt_import_plugins(one INCLUDE Qt6::QOffscreenIntegrationPlugin)
+    endif()
+    qt_add_executable(one_ui_test
+        tests/ui_test.cpp
+        src/qt_input_mapper.cpp
+    )
+    target_include_directories(one_ui_test PRIVATE src)
+    target_link_libraries(one_ui_test PRIVATE
+        One::Protocol Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Test
+    )
+    if(WIN32 AND ONE_WINDOWS_STATIC)
+        qt_import_plugins(one_ui_test INCLUDE Qt6::QOffscreenIntegrationPlugin)
+    endif()
+    qt_add_qml_module(one_ui_test
+        URI One
+        VERSION 1.0
+        OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/ui-test/One
+        QML_FILES ${ONE_QML_FILES}
+        SOURCES src/stream_video_output.cpp src/stream_video_output.hpp
+    )
+    qt_add_resources(one_ui_test ui_test_fixtures
+        PREFIX "/"
+        FILES tests/ui_fixture.qml
+    )
+    add_test(NAME one.qt.ui_interactions COMMAND one_ui_test)
+    set_tests_properties(one.qt.ui_interactions PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_FORCE_STDERR_LOGGING=1;QT_ASSUME_STDERR_HAS_CONSOLE=1"
+    )
+
     add_executable(one_qt_host_list_model_test
         tests/host_list_model_test.cpp
     )
     target_link_libraries(one_qt_host_list_model_test PRIVATE One::QtClient)
     add_test(NAME one.qt.host_list_model COMMAND one_qt_host_list_model_test)
+
+    add_executable(one_authenticated_client_test tests/authenticated_client_test.cpp)
+    target_link_libraries(one_authenticated_client_test PRIVATE One::QtClient Qt6::Test)
+    add_test(NAME one.qt.authenticated_client COMMAND one_authenticated_client_test)
 
     add_executable(one_server_info_test
         tests/server_info_test.cpp
@@ -207,7 +293,10 @@ if(ONE_BUILD_TESTS)
             one_desktop_media_dependencies
         )
         add_test(NAME one.qt.media_backend COMMAND one_media_backend_test)
-        set_tests_properties(one.qt.media_backend PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+        if(WIN32 AND ONE_WINDOWS_STATIC)
+            qt_import_plugins(one_media_backend_test INCLUDE Qt6::QOffscreenIntegrationPlugin)
+        endif()
+        set_tests_properties(one.qt.media_backend PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_FORCE_STDERR_LOGGING=1;QT_ASSUME_STDERR_HAS_CONSOLE=1")
 
         add_executable(one_desktop_input_test
             src/qt_input_mapper.cpp
@@ -239,7 +328,7 @@ if(ONE_BUILD_TESTS)
             COMMAND one --validate-ui --ui-mode=${ui_mode}
         )
         set_tests_properties(one.qt.${ui_mode} PROPERTIES
-            ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_FORCE_STDERR_LOGGING=1;QT_ASSUME_STDERR_HAS_CONSOLE=1"
         )
     endforeach()
 endif()

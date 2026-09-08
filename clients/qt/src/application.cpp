@@ -1,14 +1,14 @@
 #include "application.hpp"
 
+#include <QXmlStreamReader>
 #include <utility>
 
-#include <QXmlStreamReader>
-
-std::optional<QVector<Application>> parseApplicationList(const QByteArray& xml, QString* error) {
+std::optional<QVector<Application>> parseApplicationList(const QByteArray& xml, QString* error, int* responseStatus) {
+  if (responseStatus != nullptr) *responseStatus = 0;
   struct ParsedApplication {
     Application application;
-    bool title_seen {false};
-    bool id_seen {false};
+    bool title_seen{false};
+    bool id_seen{false};
   };
 
   QXmlStreamReader reader(xml);
@@ -24,7 +24,7 @@ std::optional<QVector<Application>> parseApplicationList(const QByteArray& xml, 
         status_code = static_cast<int>(reader.attributes().value(QStringLiteral("status_code")).toUInt());
         status_message = reader.attributes().value(QStringLiteral("status_message")).toString();
       } else if (reader.name() == u"App") {
-        parsed_applications.append(ParsedApplication {});
+        parsed_applications.append(ParsedApplication{});
         current_application = parsed_applications.size() - 1;
       } else if (current_application >= 0) {
         auto& application = parsed_applications[current_application];
@@ -59,6 +59,7 @@ std::optional<QVector<Application>> parseApplicationList(const QByteArray& xml, 
   if (reader.hasError()) {
     return fail(reader.errorString());
   }
+  if (responseStatus != nullptr) *responseStatus = status_code;
   if (status_code != 200) {
     return fail(status_message.isEmpty() ? QStringLiteral("Server returned status %1").arg(status_code)
                                          : status_message);

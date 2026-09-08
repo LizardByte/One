@@ -39,6 +39,7 @@ StreamingController::StreamingController(QObject* parent) : QObject(parent) {
   identity_ = std::make_unique<ClientIdentity>();
   gamepad_manager_ = std::make_unique<DesktopGamepadManager>();
   launch_client_ = std::make_unique<LaunchClient>(*identity_);
+  connect(launch_client_.get(), &LaunchClient::authenticationRequired, this, &StreamingController::hostAuthenticationFailed);
 
   connect(
       gamepad_manager_.get(),

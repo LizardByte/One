@@ -67,6 +67,7 @@ class StreamingController final : public QObject, public one::protocol::Connecti
   void statusChanged();
   void errorChanged();
   void controllerCountChanged();
+  void hostAuthenticationFailed(const QString& stableId);
 
  private:
   void setState(State state);

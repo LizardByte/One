@@ -9,6 +9,7 @@
 #include "server_info.hpp"
 
 class HostListModel final : public QAbstractListModel {
+  friend class HostListModelTest;
   Q_OBJECT
   Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
 
@@ -36,6 +37,7 @@ class HostListModel final : public QAbstractListModel {
   Q_INVOKABLE bool addManualHost(const QString& address, int port = 47989);
   Q_INVOKABLE QString pairHost(int row);
   Q_INVOKABLE bool openHost(int row);
+  void requirePairing(const QString& stableId);
 
  signals:
   void countChanged();
