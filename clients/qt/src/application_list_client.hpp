@@ -21,7 +21,7 @@ class ApplicationListClient final : public QObject {
   void succeeded(const QString& stableId, const QVector<Application>& applications);
   void failed(const QString& stableId, const QString& error);
   void authenticationRequired(const QString& stableId);
-  void artworkReady(const QString& stableId, int applicationId, const QString& imageSource);
+  void artworkReady(const QString& stableId, int applicationId, const QString& imageSource, const QString& error = {});
 
  private:
   const ClientIdentity& identity_;

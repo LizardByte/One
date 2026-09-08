@@ -37,6 +37,7 @@ class HostListModel final : public QAbstractListModel {
   Q_INVOKABLE bool addManualHost(const QString& address, int port = 47989);
   Q_INVOKABLE QString pairHost(int row);
   Q_INVOKABLE bool openHost(int row);
+  Q_INVOKABLE void refresh();
   void requirePairing(const QString& stableId);
 
  signals:
@@ -53,6 +54,7 @@ class HostListModel final : public QAbstractListModel {
       int currentGameId);
 
  private:
+  void restoreHosts();
   void mergeHost(one::HostUpdate update, bool queryServerInfo);
   void handleServerInfo(const QString& address, quint16 port, const struct ServerInfo& info);
   void handleServerInfoFailure(const QString& address, quint16 port);

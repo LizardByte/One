@@ -135,6 +135,13 @@ Page {
                 Item {
                     Layout.fillWidth: true
                 }
+                OneButton {
+                    objectName: "refreshComputers"
+                    text: qsTr("Refresh")
+                    symbol: "refresh"
+                    quiet: true
+                    onClicked: page.computerModel.refresh()
+                }
             }
             GridView {
                 id: hostGrid

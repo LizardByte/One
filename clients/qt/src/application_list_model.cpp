@@ -9,17 +9,19 @@
 ApplicationListModel::ApplicationListModel(QObject* parent) : QAbstractListModel(parent) {
   identity_ = std::make_unique<ClientIdentity>();
   client_ = std::make_unique<ApplicationListClient>(*identity_);
-  connect(client_.get(), &ApplicationListClient::artworkReady, this,
-          [this](const QString& stable_id, const int application_id, const QString& image_source) {
-            if (stable_id != stable_id_ || pairing_required_ || image_source.isEmpty()) return;
-            for (int row = 0; row < applications_.size(); ++row) {
-              if (applications_[row].id == application_id) {
-                artwork_.insert(application_id, image_source);
-                emit dataChanged(index(row), index(row), {ArtworkRole});
-                return;
-              }
-            }
-          });
+  connect(
+      client_.get(), &ApplicationListClient::artworkReady, this,
+      [this](const QString& stable_id, const int application_id, const QString& image_source, const QString& error) {
+        if (stable_id != stable_id_ || pairing_required_) return;
+        for (int row = 0; row < applications_.size(); ++row) {
+          if (applications_[row].id == application_id) {
+            artwork_.insert(application_id, image_source);
+            artwork_errors_.insert(application_id, error);
+            emit dataChanged(index(row), index(row), {ArtworkRole, ArtworkErrorRole});
+            return;
+          }
+        }
+      });
   connect(client_.get(), &ApplicationListClient::authenticationRequired, this, [this](const QString& stable_id) {
     emit hostAuthenticationFailed(stable_id);
     requirePairing(stable_id);
@@ -69,6 +71,8 @@ QVariant ApplicationListModel::data(const QModelIndex& index, const int role) co
       return application.app_collector_game;
     case ArtworkRole:
       return artwork_.value(application.id);
+    case ArtworkErrorRole:
+      return artwork_errors_.value(application.id);
     default:
       return {};
   }
@@ -77,7 +81,7 @@ QVariant ApplicationListModel::data(const QModelIndex& index, const int role) co
 QHash<int, QByteArray> ApplicationListModel::roleNames() const {
   return {
       {ApplicationIdRole, "applicationId"},       {TitleRole, "title"},     {HdrSupportedRole, "hdrSupported"},
-      {AppCollectorGameRole, "appCollectorGame"}, {ArtworkRole, "artwork"},
+      {AppCollectorGameRole, "appCollectorGame"}, {ArtworkRole, "artwork"}, {ArtworkErrorRole, "artworkError"},
   };
 }
 
@@ -153,6 +157,15 @@ void ApplicationListModel::setLoading(const bool loading) {
   emit loadingChanged();
 }
 
+void ApplicationListModel::retryArtwork(const int application_id) {
+  // Only failed requests can be retried; repeated activation must not fan out
+  // new requests while the previous attempt is still pending.
+  if (artwork_errors_.value(application_id).isEmpty()) return;
+  artwork_errors_.remove(application_id);
+  artwork_requested_.remove(application_id);
+  requestArtwork(application_id);
+}
+
 void ApplicationListModel::setError(QString error) {
   if (error_ == error) {
     return;
@@ -164,6 +177,7 @@ void ApplicationListModel::setError(QString error) {
 void ApplicationListModel::replaceApplications(QVector<Application> applications) {
   beginResetModel();
   artwork_.clear();
+  artwork_errors_.clear();
   artwork_requested_.clear();
   applications_ = std::move(applications);
   endResetModel();

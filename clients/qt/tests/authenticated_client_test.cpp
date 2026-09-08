@@ -179,6 +179,25 @@ int main(int argc, char* argv[]) {
   model.requestArtwork(1);
   QTest::qWait(50);
   failures += expect(first.requests == artwork_requests, "visible cards must reuse the per-library artwork cache");
+  first.body = success_body;
+  model.refresh();
+  failures += expect(until([&]() { return !model.loading(); }), "refresh must allow new artwork requests");
+  first.body.clear();
+  model.requestArtwork(1);
+  failures += expect(until([&]() {
+                       return !model.data(model.index(0), ApplicationListModel::ArtworkErrorRole).toString().isEmpty();
+                     }) &&
+                         !model.pairingRequired(),
+                     "empty artwork must expose a retryable error without unpairing");
+  first.body = cover_png;
+  model.retryArtwork(1);
+  model.retryArtwork(1);
+  const auto retry_start = first.requests;
+  failures += expect(
+      until([&]() { return !model.data(model.index(0), ApplicationListModel::ArtworkRole).toString().isEmpty(); }) &&
+          model.data(model.index(0), ApplicationListModel::ArtworkErrorRole).toString().isEmpty() &&
+          first.requests == retry_start + 1,
+      "retry must load the cover, clear its error and coalesce repeated clicks");
   first.body = rejected;
   model.refresh();
   failures += expect(until([&]() { return !model.loading(); }) && model.pairingRequired() && model.rowCount() == 0 &&

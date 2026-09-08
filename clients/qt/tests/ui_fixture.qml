@@ -10,6 +10,10 @@ QtObject {
         property int openedRow: -1
         property int pairedRow: -1
         property string addedAddress: ""
+        property int refreshCount: 0
+        function refresh() {
+            refreshCount++;
+        }
         signal pairingCompleted(string stableId, bool success, string error)
         function openHost(row) {
             openedRow = row;
@@ -51,7 +55,7 @@ QtObject {
             online: false
             paired: true
             pairing: false
-            status: "Unavailable"
+            status: "Offline"
         }
     }
     property ListModel applications: ListModel {
@@ -60,6 +64,14 @@ QtObject {
         property string error: ""
         property int refreshCount: 0
         property int artworkRequests: 0
+        property int retriedArtwork: -1
+        function retryArtwork(applicationId) {
+            retriedArtwork = applicationId;
+        }
+        function setArtwork(row, source, error) {
+            setProperty(row, "artwork", source);
+            setProperty(row, "artworkError", error);
+        }
         function requestArtwork(applicationId) {
             artworkRequests++;
         }
@@ -69,6 +81,7 @@ QtObject {
         ListElement {
             applicationId: 1
             artwork: ""
+            artworkError: ""
             title: "Desktop"
             hdrSupported: false
             appCollectorGame: false
@@ -76,6 +89,7 @@ QtObject {
         ListElement {
             applicationId: 2
             artwork: ""
+            artworkError: ""
             title: "Steam Big Picture"
             hdrSupported: false
             appCollectorGame: false
@@ -83,6 +97,7 @@ QtObject {
         ListElement {
             applicationId: 3
             artwork: ""
+            artworkError: ""
             title: "A game with a deliberately long title to check wrapping"
             hdrSupported: true
             appCollectorGame: true
@@ -90,6 +105,7 @@ QtObject {
         ListElement {
             applicationId: 4
             artwork: ""
+            artworkError: ""
             title: "Playnite"
             hdrSupported: false
             appCollectorGame: false

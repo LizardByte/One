@@ -21,7 +21,7 @@ void ApplicationListClient::query(const QString& stable_id, const QString& addre
   const auto pending_key = artwork ? stable_id + QStringLiteral("/art/%1").arg(application_id) : stable_id;
   const auto report_failure = [this, stable_id, application_id, artwork](const QString& error) {
     if (artwork)
-      emit artworkReady(stable_id, application_id, {});
+      emit artworkReady(stable_id, application_id, {}, error);
     else
       emit failed(stable_id, error);
   };
@@ -115,7 +115,9 @@ void ApplicationListClient::query(const QString& stable_id, const QString& addre
                 int status = 0;
                 static_cast<void>(parseApplicationList(payload, nullptr, &status));
                 if (status == 401) emit authenticationRequired(stable_id);
-                emit artworkReady(stable_id, application_id, {});
+                emit artworkReady(stable_id, application_id, {},
+                                  payload.isEmpty() ? tr("Sunshine returned an empty cover.")
+                                                    : tr("Sunshine did not return a supported PNG cover."));
               }
               return;
             }

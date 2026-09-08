@@ -105,7 +105,13 @@ build.
 
 The shared interface uses a compact desktop sidebar, touch navigation along the bottom, and a TV navigation bar.
 The library loads application artwork from the selected Sunshine instance over its paired TLS connection; missing
-artwork uses a local fallback and does not prevent streaming.
+artwork uses a local fallback and does not prevent streaming. Failed cover requests expose a reason and a per-title
+retry action. The library uses responsive 3:4 portrait posters and a selected-title preview on larger screens;
+backdrops, descriptions, and other future Sunshine metadata are not fabricated from the current application list.
+
+Known computers (including manually added and unpaired instances) are saved between launches. Reachability is checked
+at startup, every 15 seconds, and with Refresh. Offline computers stay visible with their saved pairing state;
+different HTTP ports remain separate Sunshine instances.
 Choose **Settings → Appearance** for dark, light, or system colors; the preference is saved on the device. Stream
 quality settings are currently read-only while that configuration path is being implemented.
 

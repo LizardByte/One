@@ -175,6 +175,7 @@ set(ONE_QML_FILES
         qml/StatusBadge.qml
         qml/OneDialog.qml
         qml/HostArtwork.qml
+        qml/PosterArtwork.qml
 )
 
 qt_add_qml_module(one

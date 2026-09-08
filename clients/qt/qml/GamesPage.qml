@@ -18,8 +18,11 @@ Page {
         backButton.forceActiveFocus();
     }
     readonly property bool compact: width < 600
-    readonly property int columnCount: Math.max(1, Math.floor((gameGrid.width + 12) / (televisionMode ? 360 : 280)))
-    padding: televisionMode ? 36 : 28
+    readonly property int columnCount: Math.max(2, Math.floor((gameGrid.width + 18) / (televisionMode ? 210 : 190)))
+    readonly property bool libraryReady: !applicationModel.loading && applicationModel.error.length === 0 && applicationModel.count > 0
+    readonly property bool canStream: streamingController.available && !streamingController.busy
+    readonly property var selectedCard: gameGrid.currentItem
+    padding: televisionMode ? 36 : compact ? 20 : 28
     background: Rectangle {
         color: Theme.background
     }
@@ -61,7 +64,7 @@ Page {
                 Label {
                     Layout.fillWidth: true
                     text: page.hostName
-                    font.pixelSize: Theme.titleSize
+                    font.pixelSize: page.televisionMode ? 24 : 18
                     font.weight: Font.DemiBold
                     elide: Text.ElideRight
                 }
@@ -74,9 +77,65 @@ Page {
                 }
             }
             Label {
-                text: qsTr("%1 applications").arg(page.applicationModel.count)
+                text: qsTr("%1 titles").arg(page.applicationModel.count)
                 color: Theme.muted
                 visible: !page.applicationModel.loading && page.applicationModel.error.length === 0
+            }
+        }
+        // Reserve separate roles for future backdrops and metadata; today's
+        // selected-title view uses only the real title and portrait artwork.
+        Rectangle {
+            id: preview
+            objectName: "titlePreview"
+            Layout.fillWidth: true
+            Layout.preferredHeight: page.televisionMode ? 180 : 200
+            visible: page.libraryReady && !page.compact && page.height >= (page.televisionMode ? 680 : 700)
+            radius: 10
+            color: Theme.surface
+            RowLayout {
+                anchors.fill: parent
+                anchors.margins: 20
+                spacing: 24
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    spacing: 10
+                    Label {
+                        text: page.selectedCard && page.selectedCard.appCollectorGame ? qsTr("Game") : qsTr("Application")
+                        color: Theme.muted
+                        font.pixelSize: page.televisionMode ? 16 : 12
+                    }
+                    Label {
+                        objectName: "selectedTitle"
+                        Layout.fillWidth: true
+                        text: page.selectedCard ? page.selectedCard.displayTitle : ""
+                        font.pixelSize: page.televisionMode ? 36 : 34
+                        font.weight: Font.DemiBold
+                        maximumLineCount: 2
+                        wrapMode: Text.WordWrap
+                        elide: Text.ElideRight
+                    }
+                    Item {
+                        Layout.fillHeight: true
+                    }
+                    OneButton {
+                        objectName: "playSelected"
+                        text: qsTr("Play")
+                        symbol: "play"
+                        primary: true
+                        enabled: page.canStream && page.selectedCard !== null
+                        Accessible.name: page.selectedCard ? qsTr("Play %1").arg(page.selectedCard.displayTitle) : text
+                        onClicked: page.streamRequested(page.selectedCard.applicationId, page.selectedCard.title)
+                        Keys.onDownPressed: gameGrid.focusCard(gameGrid.currentIndex)
+                        Keys.onUpPressed: backButton.forceActiveFocus()
+                    }
+                }
+                PosterArtwork {
+                    Layout.fillHeight: true
+                    Layout.preferredWidth: (preview.height - 40) * 3 / 4
+                    title: page.selectedCard ? page.selectedCard.displayTitle : ""
+                    source: page.selectedCard ? page.selectedCard.artwork : ""
+                }
             }
         }
         Surface {
@@ -152,6 +211,12 @@ Page {
                 }
             }
         }
+        Label {
+            text: qsTr("Library")
+            font.pixelSize: page.televisionMode ? 28 : 23
+            font.weight: Font.DemiBold
+            visible: page.libraryReady
+        }
         GridView {
             id: gameGrid
             objectName: "gameGrid"
@@ -159,8 +224,13 @@ Page {
             Layout.fillHeight: true
             visible: !page.applicationModel.loading && page.applicationModel.error.length === 0 && page.applicationModel.count > 0
             clip: true
+            readonly property int gap: page.televisionMode ? 24 : 18
             cellWidth: width / page.columnCount
-            cellHeight: page.televisionMode ? 370 : 334
+            cellHeight: (cellWidth - gap) * 4 / 3 + (page.televisionMode ? 68 : 58)
+            currentIndex: 0
+            // Hover updates the preview without scrolling the shelf underneath
+            // the pointer. Keyboard navigation positions the view explicitly.
+            highlightFollowsCurrentItem: false
             model: page.applicationModel
             ScrollBar.vertical: ScrollBar {}
 
@@ -171,18 +241,23 @@ Page {
                 required property string title
                 required property bool hdrSupported
                 required property string artwork
+                required property string artworkError
                 required property bool appCollectorGame
                 readonly property string displayTitle: title.length > 0 ? title : qsTr("Untitled application")
                 objectName: "gameCard" + index
-                width: gameGrid.cellWidth - (page.columnCount > 1 ? 14 : 0)
+                width: gameGrid.cellWidth - gameGrid.gap
                 height: gameGrid.cellHeight - 14
                 padding: 0
                 text: displayTitle
-                Accessible.name: qsTr("Stream %1").arg(displayTitle)
-                enabled: page.streamingController.available && !page.streamingController.busy
+                Accessible.name: qsTr("Play %1").arg(displayTitle)
                 focusPolicy: Qt.StrongFocus
                 hoverEnabled: true
-                onClicked: page.streamRequested(applicationId, title)
+                onClicked: if (page.canStream)
+                    page.streamRequested(applicationId, title)
+                onHoveredChanged: if (hovered)
+                    gameGrid.currentIndex = index
+                onActiveFocusChanged: if (activeFocus)
+                    gameGrid.currentIndex = index
                 Component.onCompleted: page.applicationModel.requestArtwork(applicationId)
                 Keys.onRightPressed: gameGrid.focusCard(index + 1)
                 Keys.onLeftPressed: {
@@ -200,95 +275,81 @@ Page {
                 }
                 ToolTip.visible: hovered
                 ToolTip.delay: 700
-                ToolTip.text: displayTitle
-                background: Rectangle {
-                    radius: Theme.radius
-                    color: gameCard.hovered ? Theme.elevated : Theme.surface
-                    border.color: gameCard.activeFocus || gameCard.hovered ? Theme.accent : Theme.border
-                    border.width: gameCard.activeFocus ? 2 : 1
-                    Behavior on color {
-                        ColorAnimation {
-                            duration: 120
-                        }
-                    }
-                }
-                contentItem: ColumnLayout {
-                    spacing: 0
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        Layout.margins: 10
-                        radius: 9
-                        color: Theme.dark ? "#142521" : "#E7F1EC"
-                        Image {
-                            id: cover
+                ToolTip.text: artworkError.length > 0 ? artworkError : displayTitle
+                background: Item {}
+                contentItem: Item {
+                    PosterArtwork {
+                        id: cover
+                        objectName: "gamePoster" + gameCard.index
+                        width: parent.width
+                        height: width * 4 / 3
+                        source: gameCard.artwork
+                        title: gameCard.displayTitle
+                        Rectangle {
                             anchors.fill: parent
-                            anchors.margins: 1
-                            source: gameCard.artwork
-                            asynchronous: true
-                            cache: false
-                            fillMode: Image.PreserveAspectFit
+                            color: "#30000000"
+                            visible: gameCard.hovered || gameCard.activeFocus
                         }
-                        HostArtwork {
-                            anchors.fill: parent
-                            anchors.margins: 12
-                            visible: cover.status !== Image.Ready && gameCard.displayTitle.toLowerCase() === "desktop"
-                        }
-                        OneIcon {
+                        Rectangle {
                             anchors.centerIn: parent
-                            name: "gamepad"
-                            implicitWidth: page.televisionMode ? 76 : 60
-                            implicitHeight: implicitWidth
+                            width: page.televisionMode ? 64 : 48
+                            height: width
+                            radius: width / 2
                             color: Theme.accent
-                            visible: cover.status !== Image.Ready && gameCard.displayTitle.toLowerCase() !== "desktop"
+                            visible: page.canStream && (gameCard.hovered || gameCard.activeFocus)
+                            OneIcon {
+                                anchors.centerIn: parent
+                                name: "play"
+                                color: Theme.accentText
+                            }
+                        }
+                        Rectangle {
+                            anchors.fill: parent
+                            color: "transparent"
+                            radius: 6
+                            border.width: gameCard.activeFocus ? 3 : 2
+                            border.color: Theme.accent
+                            visible: gameCard.hovered || gameCard.activeFocus
                         }
                         StatusBadge {
                             anchors.right: parent.right
                             anchors.top: parent.top
-                            anchors.margins: 12
+                            anchors.margins: 10
                             visible: gameCard.hdrSupported
                             text: qsTr("HDR")
                             dot: false
                             tone: Theme.accent
                         }
+                        OneButton {
+                            objectName: "retryArtwork" + gameCard.index
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            anchors.bottom: parent.bottom
+                            anchors.bottomMargin: 10
+                            visible: gameCard.artworkError.length > 0
+                            text: qsTr("Retry cover")
+                            symbol: "refresh"
+                            implicitHeight: page.televisionMode ? 48 : 36
+                            onClicked: page.applicationModel.retryArtwork(gameCard.applicationId)
+                            ToolTip.visible: hovered
+                            ToolTip.text: gameCard.artworkError
+                        }
                     }
                     Label {
-                        Layout.fillWidth: true
-                        Layout.leftMargin: 20
-                        Layout.rightMargin: 20
-                        Layout.preferredHeight: page.televisionMode ? 60 : 46
+                        anchors.top: cover.bottom
+                        anchors.topMargin: 10
+                        width: parent.width
                         text: gameCard.displayTitle
-                        font.pixelSize: page.televisionMode ? 23 : 18
-                        font.weight: Font.DemiBold
+                        font.pixelSize: page.televisionMode ? 21 : 15
+                        font.weight: gameCard.hovered || gameCard.activeFocus ? Font.DemiBold : Font.Normal
                         color: Theme.text
-                        wrapMode: Text.WordWrap
-                        maximumLineCount: 2
                         elide: Text.ElideRight
-                    }
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Layout.margins: 20
-                        Layout.topMargin: 8
-                        Label {
-                            text: qsTr("Stream")
-                            color: Theme.accent
-                            font.pixelSize: Theme.television ? 18 : 13
-                        }
-                        Item {
-                            Layout.fillWidth: true
-                        }
-                        OneIcon {
-                            name: "play"
-                            color: Theme.accent
-                            implicitWidth: 18
-                            implicitHeight: 18
-                        }
                     }
                 }
             }
             function focusCard(index) {
                 if (index < 0 || index >= count)
                     return;
+                currentIndex = index;
                 positionViewAtIndex(index, GridView.Contain);
                 const card = itemAtIndex(index);
                 if (card)

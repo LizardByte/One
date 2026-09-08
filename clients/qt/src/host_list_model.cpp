@@ -1,6 +1,7 @@
 #include "host_list_model.hpp"
 
 #include <QString>
+#include <QTimer>
 #include <QUrl>
 #include <limits>
 #include <utility>
@@ -37,10 +38,40 @@ HostListModel::HostListModel(QObject* parent, const bool enableNetworkServices) 
       server_info_.get(), &ServerInfoClient::failed, this,
       [this](const QString& address, const quint16 port, const QString&) { handleServerInfoFailure(address, port); });
   connect(pairing_.get(), &PairingClient::completed, this, &HostListModel::handlePairingCompleted);
+  restoreHosts();
+  refresh();
+  auto* refresh_timer = new QTimer(this);
+  connect(refresh_timer, &QTimer::timeout, this, &HostListModel::refresh);
+  refresh_timer->start(15000);
   discovery_->start();
 }
 
 HostListModel::~HostListModel() = default;
+
+void HostListModel::restoreHosts() {
+  const auto saved = loadKnownHosts();
+  beginResetModel();
+  for (const auto& host : saved) {
+    static_cast<void>(
+        catalog_.merge({.stable_id = host.stable_id,
+                        .display_name = host.display_name,
+                        .endpoint = host.endpoint,
+                        .origin = host.manually_added ? one::HostOrigin::manual : one::HostOrigin::discovered,
+                        .reachability = one::HostReachability::unknown,
+                        .pairing = host.pairing}));
+  }
+  endResetModel();
+  emit countChanged();
+}
+
+void HostListModel::refresh() {
+  if (!server_info_) return;
+  for (const auto& host : catalog_.hosts()) {
+    // Pairing owns the handshake until its worker finishes.
+    if (host.pairing != one::HostPairingState::pairing)
+      server_info_->query(QString::fromStdString(host.endpoint.address), host.endpoint.port);
+  }
+}
 
 int HostListModel::rowCount(const QModelIndex& parent) const {
   if (parent.isValid()) {
@@ -77,7 +108,7 @@ QVariant HostListModel::data(const QModelIndex& index, const int role) const {
         case one::HostReachability::online:
           return tr("Online");
         case one::HostReachability::offline:
-          return tr("Unavailable");
+          return tr("Offline");
         case one::HostReachability::unknown:
           return tr("Checking…");
       }
@@ -195,6 +226,7 @@ void HostListModel::mergeHost(one::HostUpdate update, const bool queryServerInfo
   }
 
   const auto index = catalog_.merge(std::move(update));
+  saveKnownHosts(catalog_.hosts());
   if (new_host) {
     endInsertRows();
     emit countChanged();

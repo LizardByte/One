@@ -22,6 +22,7 @@ class ApplicationListModel final : public QAbstractListModel {
     HdrSupportedRole,
     AppCollectorGameRole,
     ArtworkRole,
+    ArtworkErrorRole,
   };
   Q_ENUM(Role)
 
@@ -42,6 +43,7 @@ class ApplicationListModel final : public QAbstractListModel {
                 const QString& appVersion, const QString& gfeVersion, int codecModeSupport, int currentGameId);
   void refresh();
   void requestArtwork(int applicationId);
+  void retryArtwork(int applicationId);
   void requirePairing(const QString& stableId);
 
  signals:
@@ -62,6 +64,7 @@ class ApplicationListModel final : public QAbstractListModel {
   std::unique_ptr<class ApplicationListClient> client_;
   QVector<Application> applications_;
   QHash<int, QString> artwork_;
+  QHash<int, QString> artwork_errors_;
   QSet<int> artwork_requested_;
   QString stable_id_;
   QString host_name_;
