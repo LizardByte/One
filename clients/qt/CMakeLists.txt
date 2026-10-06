@@ -21,52 +21,12 @@ if(NOT ANDROID AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS" AND NOT CMAKE_SYSTEM_NAM
     find_package(PkgConfig QUIET)
     find_package(SDL3 CONFIG QUIET)
     if(PkgConfig_FOUND)
-        pkg_check_modules(ONE_OPUS QUIET opus)
-        if(WIN32 AND ONE_WINDOWS_STATIC)
-            include(${PROJECT_SOURCE_DIR}/cmake/ffmpeg_decoder.cmake)
-        else()
-            pkg_check_modules(ONE_FFMPEG QUIET libavcodec libavutil libswscale)
-        endif()
+        include(${PROJECT_SOURCE_DIR}/cmake/ffmpeg.cmake)
     endif()
     if(ONE_FFMPEG_FOUND AND ONE_OPUS_FOUND AND TARGET SDL3::SDL3-static)
         set(ONE_HAS_DESKTOP_MEDIA ON)
         add_library(one_desktop_media_dependencies INTERFACE)
-        target_include_directories(one_desktop_media_dependencies INTERFACE
-            ${ONE_FFMPEG_INCLUDE_DIRS}
-            ${ONE_OPUS_INCLUDE_DIRS}
-        )
-        target_link_directories(one_desktop_media_dependencies INTERFACE
-            ${ONE_FFMPEG_STATIC_LIBRARY_DIRS}
-            ${ONE_OPUS_STATIC_LIBRARY_DIRS}
-        )
-        if(WIN32 AND ONE_WINDOWS_STATIC)
-            target_link_libraries(one_desktop_media_dependencies INTERFACE
-                One::FFmpeg ${ONE_OPUS_STATIC_LIBRARIES} SDL3::SDL3-static
-            )
-        elseif(MINGW AND ONE_PREFER_STATIC_DEPENDENCIES)
-            # The complete MSYS2 FFmpeg static closure contains conflicting Rust
-            # runtimes and a Windows-incompatible libdl dependency. Keep the
-            # small FFmpeg ABI surface shared until One has a decoder-only build;
-            # Opus and SDL3 remain static here.
-            target_link_libraries(one_desktop_media_dependencies INTERFACE
-                "-Wl,-Bdynamic"
-                ${ONE_FFMPEG_LIBRARIES}
-                "-Wl,-Bstatic"
-                ${ONE_OPUS_STATIC_LIBRARIES}
-                "-Wl,-Bdynamic"
-                SDL3::SDL3-static
-            )
-        else()
-            target_link_libraries(one_desktop_media_dependencies INTERFACE
-                ${ONE_FFMPEG_LINK_LIBRARIES}
-                ${ONE_OPUS_LINK_LIBRARIES}
-                SDL3::SDL3-static
-            )
-        endif()
-        target_link_options(one_desktop_media_dependencies INTERFACE
-            ${ONE_FFMPEG_LDFLAGS_OTHER}
-            ${ONE_OPUS_STATIC_LDFLAGS_OTHER}
-        )
+        target_link_libraries(one_desktop_media_dependencies INTERFACE One::FFmpeg SDL3::SDL3-static)
         message(STATUS "One desktop media backend enabled with decoder-enabled FFmpeg")
     else()
         if(WIN32 AND ONE_WINDOWS_STATIC)

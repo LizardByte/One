@@ -55,9 +55,6 @@ RGB LED callbacks use SDL3's capability-gated API. DualSense adaptive-trigger pa
 boundary and are translated into SDL3's PS5-specific 47-byte effect packet only inside the desktop adapter. Teardown
 explicitly sends SDL's clear-trigger effect so resistance cannot remain active after the stream ends.
 
-Sunshine's FFmpeg package is encoder-focused and is not a client dependency. One's eventual bundled FFmpeg build
-must be decoder-only and contain the codecs needed by the negotiated client formats.
-
 ## Required design constraints
 
 - Android TV and Apple TV are release requirements, not optional future targets.

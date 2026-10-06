@@ -1,6 +1,12 @@
 [submodule "core/protocol/vendor/moonlight-common-c"]
 	path = core/protocol/vendor/moonlight-common-c
 	url = https://github.com/moonlight-stream/moonlight-common-c.git
+	branch = master
 [submodule "clients/qt/vendor/qmdnsengine"]
 	path = clients/qt/vendor/qmdnsengine
 	url = https://github.com/cgutman/qmdnsengine.git
+	branch = moonlight
+[submodule "third-party/build-deps"]
+	path = third-party/build-deps
+	url = https://github.com/LizardByte/build-deps.git
+	branch = master

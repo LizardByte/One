@@ -52,17 +52,18 @@ ctest --preset core
 
 ## Build the shared Qt client
 
-Install Qt 6.8 or later with Qt Quick and Qt Quick Controls. Desktop streaming also requires a decoder-enabled
-FFmpeg, Opus, and SDL3 development package. Then configure with the dependency prefix:
+Install Qt 6.8 or later with Qt Quick and Qt Quick Controls, plus the SDL3 development package.
+Desktop builds use the `third-party/build-deps` submodule, just like Sunshine. CMake selects the
+release tag on that submodule's current commit and downloads the matching platform's FFmpeg archive:
 
 ```shell
-cmake -S . -B build/qt -DCMAKE_PREFIX_PATH=/path/to/Qt -DONE_BUILD_QT_CLIENT=ON
+cmake -S . -B build/qt -DCMAKE_PREFIX_PATH=/path/to/Qt
 cmake --build build/qt
 ```
 
 Launch the desktop build directly from its build directory (for example, `./build/qt/one` on Unix-like systems).
 Windows builds default to fully static third-party dependencies. With the MSYS2 UCRT64 toolchain, install
-`mingw-w64-ucrt-x86_64-qt6-static`, SDL3, Opus, dav1d, NASM, and the MSYS2 `make` package, then build from PowerShell:
+`mingw-w64-ucrt-x86_64-qt6-static` and SDL3, then build from PowerShell:
 
 ```powershell
 $env:PATH = "C:\msys64\ucrt64\bin;$env:PATH"
@@ -89,9 +90,12 @@ The Windows executable can run by itself, without MSYS2 on `PATH` or a Qt plugin
 OpenSSL, SDL3, Opus, dav1d, FFmpeg, and the MinGW runtimes are statically linked; only Windows operating-system DLLs
 are imported. The build checks the executable's import table and fails if a third-party DLL slips in.
 
-The first Windows build downloads a hash-pinned FFmpeg source release and builds a decoder-only static package
-inside the build directory: H.264, HEVC, and AV1 decoding, with no encoders or network stack. Current streaming
-negotiation remains H.264 SDR. This is separate from Sunshine's encoder-focused package.
+The build-deps media package supplies static FFmpeg, dav1d, and Opus libraries, with encoders, decoders,
+formats, filters, and command-line tools. One links the libraries it needs for video and audio decoding.
+For an offline build, extract a matching `<platform>-ffmpeg.tar.gz` release asset and set
+`FFMPEG_PREPARED_BINARIES` to its `ffmpeg` directory. To select a different published release, check out
+that release tag in `third-party/build-deps`; the submodule commit is the dependency pin.
+Current streaming negotiation remains H.264 SDR.
 
 `ONE_WINDOWS_STATIC` defaults to `ON` on Windows and currently uses the MSYS2 MinGW toolchain. Static Qt is
 discovered beside the compiler; set `CMAKE_PREFIX_PATH` if it is installed elsewhere. Use a fresh build directory
@@ -141,7 +145,7 @@ certificate validation, artwork loading, authorization failures, and library rec
 pairings. The pairing test also exercises the asynchronous worker against a local test server.
 
 Platform packaging and native streaming backends will be added as each existing client is brought into the shared
-architecture. One does not reuse Sunshine's encoder-focused FFmpeg build.
+architecture. Sunshine and One consume the same FFmpeg package from LizardByte/build-deps.
 
 ## License
 
