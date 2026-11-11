@@ -8,6 +8,13 @@
   <h4 align="center">A universal game-streaming client for Sunshine.</h4>
 </div>
 
+<div align="center">
+  <a href="https://github.com/SunshineStream/One"><img src="https://img.shields.io/github/stars/SunshineStream/One.svg?logo=github&style=for-the-badge" alt="GitHub stars"></a>
+</div>
+
+One is a [SunshineStream](https://github.com/SunshineStream) project under the
+[LizardByte](https://app.lizardbyte.dev/) umbrella.
+
 One brings the desktop, Android, Android TV, iPhone, iPad, Apple TV, and Xbox clients into one repository with one
 portable core and a standardized interface.
 

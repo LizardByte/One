@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.24)
 project(One
         VERSION 0.1.0
         DESCRIPTION "Universal game-streaming client for Sunshine"
-        HOMEPAGE_URL "https://github.com/LizardByte/One")
+        HOMEPAGE_URL "https://github.com/SunshineStream/One")
 
 set(PROJECT_LICENSE "GPL-3.0-only")
 set(PROJECT_FQDN "dev.lizardbyte.app.One")
