@@ -1,0 +1,54 @@
+{
+  "version": 5,
+  "configurePresets": [
+    {
+      "name": "core",
+      "displayName": "Portable core",
+      "description": "Build and test the Qt-free shared core",
+      "binaryDir": "${sourceDir}/build/core",
+      "cacheVariables": {
+        "ONE_BUILD_QT_CLIENT": "OFF",
+        "ONE_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "windows-static",
+      "displayName": "Windows static Qt client (MSYS2)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/windows-static",
+      "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows"},
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "gcc.exe",
+        "CMAKE_CXX_COMPILER": "g++.exe",
+        "ONE_WINDOWS_STATIC": "ON",
+        "ONE_BUILD_QT_CLIENT": "ON",
+        "ONE_BUILD_TESTS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "core",
+      "configurePreset": "core"
+    },
+    {
+      "name": "windows-static",
+      "configurePreset": "windows-static"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "core",
+      "configurePreset": "core",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-static",
+      "configurePreset": "windows-static",
+      "output": {"outputOnFailure": true}
+    }
+  ]
+}

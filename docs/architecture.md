@@ -1,0 +1,65 @@
+# Architecture
+
+One uses one portable streaming/application core and maximizes shared interface code without forcing platform media
+and input APIs into a lowest-common-denominator abstraction.
+
+## Runtime layers
+
+1. `core/protocol` contains a pinned `moonlight-common-c` submodule behind a One-owned C++ interface.
+2. `core` contains Qt-free C++ application behavior and data models, including host identity and pairing state.
+3. `clients/qt` contains the shared Qt Quick interface for desktop, Android, Android TV, iOS, and Apple TV.
+4. Platform adapters provide hardware decoding, rendering, audio, input, secure storage, and lifecycle integration.
+5. `clients/xbox` provides the UWP XAML interface for Xbox while consuming the same core contracts.
+
+The core must not expose Qt, JNI, Foundation, or WinRT types. Boundaries use portable C++ internally and a narrow C
+ABI where a platform language requires one.
+
+Discovery and pairing do not belong to `moonlight-common-c`. Platform discovery adapters feed a shared `HostCatalog`.
+The Qt client uses qmdnsengine for `_nvstream._tcp` discovery and owns its GameStream HTTP, certificate, and pairing
+exchange. Client identity and pinned host certificates are persistent; platform secure-storage adapters remain a
+later hardening step.
+
+## Shared interface
+
+The Qt interface has three responsive modes selected from device capabilities:
+
+- `desktop`: pointer-first navigation and a persistent side rail.
+- `touch`: touch-first layouts with bottom navigation.
+- `television`: directional navigation, larger typography, and top navigation.
+
+Android determines television mode through `UiModeManager`. tvOS selects television mode at compile time. All builds
+can preview another mode with `--ui-mode=desktop|touch|television` or the `ONE_UI_MODE` environment variable.
+
+The final streaming surface remains platform-native. QML hosts the surface and draws menus or diagnostics over it
+without copying decoded frames through the UI layer. The initial desktop bring-up backend deliberately uses FFmpeg
+software decoding and a copied `QImage`; it is a protocol-integration path, not the final zero-copy renderer.
+
+`core/protocol` owns the stream configuration, per-session cryptographic input key, launch parameters, and
+`moonlight-common-c` lifecycle. Platform media adapters receive One-owned encoded-video and Opus views rather than
+vendor structs. Because `moonlight-common-c` currently stores connection state globally, the boundary enforces one
+active stream per process. HTTP `/launch` or `/resume` must not be sent until compatible audio and video adapters are
+ready to start the protocol session immediately.
+
+Keyboard and pointer adapters translate platform events into One-owned virtual-key, modifier, button, motion, and
+scroll types. Only the protocol boundary adds GameStream packet conventions and calls `moonlight-common-c`. Input
+adapters must track every pressed key and button and release them on capture loss, focus loss, or session teardown.
+The desktop controller adapter uses SDL3 Gamepad mappings, assigns the lowest available protocol slot, includes the
+active-controller mask in launch requests, and reports hot-plug arrival/departure events. It advertises only feedback
+capabilities that the adapter actually implements.
+Host-driven standard and trigger-rumble callbacks cross the protocol boundary and are queued onto the Qt thread before
+calling SDL3. Session teardown sends zero-intensity effects so motors cannot remain active after streaming stops.
+Touch contacts and battery changes are reported from SDL3 while the session is active. Accelerometer and gyro sensors
+remain disabled until the host requests a reporting rate; gyro values are converted from SDL radians per second to the
+protocol's degrees per second. Teardown cancels active touches and disables both sensors.
+RGB LED callbacks use SDL3's capability-gated API. DualSense adaptive-trigger payloads remain portable at the protocol
+boundary and are translated into SDL3's PS5-specific 47-byte effect packet only inside the desktop adapter. Teardown
+explicitly sends SDL's clear-trigger effect so resistance cannot remain active after the stream ends.
+
+## Required design constraints
+
+- Android TV and Apple TV are release requirements, not optional future targets.
+- Platform behavior is capability-driven. Do not assume every controller or output feature exists on every device of
+  an operating-system family.
+- A shared UI does not require identical density or navigation on pointer, touch, and television devices.
+- Xbox may render different XAML controls, but it must consume the same settings, labels, state transitions, and
+  behavioral tests as the Qt application.

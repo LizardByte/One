@@ -1,0 +1,75 @@
+#include <cstdint>
+#include <cstdlib>
+#include <iostream>
+#include <limits>
+
+#include <QCoreApplication>
+
+#include <SDL3/SDL_gamepad.h>
+
+#include "desktop_gamepad_manager.hpp"
+
+namespace {
+
+bool expect_button(const SDL_GamepadButton native, const one::protocol::ControllerButton expected) {
+  if (gamepadButtonForSdlButton(native) == one::protocol::controller_button(expected)) {
+    return true;
+  }
+  std::cerr << "SDL gamepad button mapped to the wrong protocol button\n";
+  return false;
+}
+
+}  // namespace
+
+int main(int argc, char* argv[]) {
+  QCoreApplication application(argc, argv);
+  DesktopGamepadManager manager;
+  if (!manager.available()) {
+    std::cerr << "SDL3 gamepad subsystem is unavailable\n";
+    return EXIT_FAILURE;
+  }
+  manager.rumble(16, 1, 1);
+  manager.rumbleTriggers(16, 1, 1);
+  manager.setMotionReporting(16, one::protocol::ControllerMotionType::accelerometer, 100);
+  manager.setLed(16, 1, 2, 3);
+
+  one::protocol::ControllerAdaptiveTriggerEffect adaptive_effect {
+      .update_left = true,
+      .update_right = true,
+      .left_type = 0x01,
+      .right_type = 0x06,
+  };
+  adaptive_effect.left_payload.front() = 0x10;
+  adaptive_effect.left_payload.back() = 0x19;
+  adaptive_effect.right_payload.front() = 0x20;
+  adaptive_effect.right_payload.back() = 0x29;
+  manager.setAdaptiveTriggers(16, adaptive_effect);
+  const auto effect_packet = dualSenseEffectPacket(adaptive_effect);
+  if (effect_packet.size() != dualsense_effect_packet_size || effect_packet[0] != 0x0C ||
+      effect_packet[10] != adaptive_effect.right_type || effect_packet[11] != 0x20 ||
+      effect_packet[20] != 0x29 || effect_packet[21] != adaptive_effect.left_type ||
+      effect_packet[22] != 0x10 || effect_packet[31] != 0x19) {
+    std::cerr << "DualSense adaptive trigger effect used the wrong SDL3 packet layout\n";
+    return EXIT_FAILURE;
+  }
+
+  using one::protocol::ControllerButton;
+  if (!expect_button(SDL_GAMEPAD_BUTTON_SOUTH, ControllerButton::a) ||
+      !expect_button(SDL_GAMEPAD_BUTTON_MISC1, ControllerButton::misc) ||
+      !expect_button(SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1, ControllerButton::paddle_1) ||
+      !expect_button(SDL_GAMEPAD_BUTTON_LEFT_PADDLE2, ControllerButton::paddle_4) ||
+      !expect_button(SDL_GAMEPAD_BUTTON_TOUCHPAD, ControllerButton::touchpad)) {
+    return EXIT_FAILURE;
+  }
+  if (invertGamepadYAxis(std::numeric_limits<std::int16_t>::min()) !=
+          std::numeric_limits<std::int16_t>::max() ||
+      invertGamepadYAxis(std::numeric_limits<std::int16_t>::max()) !=
+          -std::numeric_limits<std::int16_t>::max() ||
+      gamepadTriggerValue(-1) != 0 || gamepadTriggerValue(0) != 0 ||
+      gamepadTriggerValue(std::numeric_limits<std::int16_t>::max()) !=
+          std::numeric_limits<std::uint8_t>::max()) {
+    std::cerr << "SDL gamepad axes mapped to the wrong protocol range\n";
+    return EXIT_FAILURE;
+  }
+  return EXIT_SUCCESS;
+}
